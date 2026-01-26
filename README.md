@@ -15,7 +15,7 @@ A modern chat application with AI agents that supports multiple LLM providers an
 1. **Clone and setup**
    ```bash
    git clone <repository-url>
-   cd ai-agent-chat
+   cd ao-agent
    ```
 
 2. **Start PostgreSQL and pgAdmin with Docker**
