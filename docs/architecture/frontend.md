@@ -186,12 +186,14 @@ Renders MainApp
 - Main chat interface component
 - Features:
   - Message display with markdown rendering
+  - **Real-time streaming display** - AI responses appear token-by-token
+  - "AI is thinking..." indicator before streaming starts
+  - **Smooth auto-scroll** during streaming
   - Input area with auto-resize
   - Model selection dropdown (Gemini models)
-  - Loading states
+  - Loading states (`isLoading`, `isStreaming`)
   - Error handling
-  - Auto-scroll to latest message
-  - Copy message functionality
+  - Copy and download message functionality
 
 #### 4. **Sidebar** (`components/sidebar/Sidebar.tsx`)
 - Chat navigation sidebar
@@ -241,15 +243,23 @@ const queryClient = new QueryClient({
 
 #### **useChat** (`hooks/useChat.ts`)
 - Manages chat-related state and operations
+- **Supports HTTP streaming** for real-time AI responses
 - Provides:
   - `currentChat` - Current chat object
   - `messages` - Messages array
-  - `isLoading` - Loading state
+  - `isLoading` - Loading state (true while waiting for response)
+  - `isStreaming` - Streaming state (true while receiving chunks)
   - `error` - Error state
   - `createChat()` - Create new chat
   - `loadChat()` - Load existing chat
-  - `sendMessage()` - Send message to chat
+  - `sendMessage()` - Send message with streaming support
   - `clearError()` - Clear error state
+  - `resetChat()` - Reset chat state
+
+**Streaming Flow:**
+1. User sends message → `isLoading=true`, `isStreaming=false`
+2. First chunk arrives → `isStreaming=true`, message content updates incrementally
+3. Streaming completes → `isLoading=false`, `isStreaming=false`
 
 #### **useTranslation** (`hooks/useTranslation.ts`)
 - Internationalization support
@@ -266,17 +276,48 @@ Main API service that handles:
 - Automatic token injection
 - Error handling
 - Token expiration handling
+- **HTTP Streaming (SSE)** for AI responses
 
 **Key Methods:**
+
+*Standard REST:*
 - `createChat()` - Create new chat
 - `getChats()` - Get all user's chats
 - `getChat()` - Get chat by ID
-- `sendMessage()` - Send message to chat
+- `sendMessage()` - Send message to chat (REST, waits for complete response)
 - `register()` - User registration
 - `login()` - User login
 - `logout()` - User logout
 
-**Request Flow:**
+*Streaming (SSE):*
+- `sendMessageStream(chatId, request, onChunk, onDone, onError)` - Send message with streaming response
+- `sendAnonymousMessageStream(chatId, request, onChunk, onDone, onError)` - Streaming for anonymous users
+
+**Streaming Request Flow:**
+```
+Component → sendMessageStream()
+  ↓
+Check token expiration
+  ↓
+Add Authorization header
+  ↓
+Make HTTP request to /messages/stream endpoint
+  ↓
+Read response as ReadableStream
+  ↓
+Parse SSE events (data: {...})
+  ↓
+Call onChunk() for each chunk
+  ↓
+Call onDone() when complete
+```
+
+**SSE Event Types:**
+- `chunk`: Partial AI response content
+- `done`: Complete message object (saved to database)
+- `error`: Error message
+
+**Standard REST Request Flow:**
 ```
 Component → apiService method
   ↓
@@ -284,7 +325,7 @@ Check token expiration
   ↓
 Add Authorization header
   ↓
-Make HTTP request (axios)
+Make HTTP request (fetch)
   ↓
 Handle response/error
   ↓

@@ -2,7 +2,12 @@
 
 ## 📋 Overview
 
-The backend is a Node.js/Express application built with TypeScript, providing RESTful API endpoints for the chat application. It integrates with PostgreSQL database, Google Gemini API, and optionally with MCP (Model Context Protocol) servers.
+The backend is a Node.js/Express application built with TypeScript, providing both RESTful API endpoints and **HTTP streaming (Server-Sent Events)** for the chat application. It integrates with PostgreSQL database, Google Gemini API, and optionally with MCP (Model Context Protocol) servers.
+
+### Communication Types
+
+- **REST API**: Standard request/response for CRUD operations (chats, users, etc.)
+- **Server-Sent Events (SSE)**: Real-time streaming for AI responses, providing token-by-token display similar to ChatGPT/Claude
 
 ## 🏗️ Architecture
 
@@ -203,6 +208,18 @@ Main controller for chat operations. All methods use `ResponseHelper` for standa
 - Saves assistant response
 - Returns assistant message
 
+##### **sendMessageStream()** *(NEW - HTTP Streaming)*
+- Validates message content
+- Sets SSE headers (`Content-Type: text/event-stream`, `Cache-Control: no-cache`)
+- Adds user message to chat
+- Streams AI response chunks using `geminiService.sendMessageStream()`
+- Sends events: `chunk` (partial content), `done` (complete message), `error`
+- Saves complete assistant response to database after streaming completes
+
+##### **sendAnonymousMessageStream()** *(NEW - HTTP Streaming)*
+- Same as `sendMessageStream()` but for anonymous (unauthenticated) users
+- Stores chat in memory instead of database
+
 ##### **updateChat()**
 - Updates chat title
 - Verifies user ownership
@@ -228,7 +245,14 @@ Manages Google Gemini API integration
 - Model switching support
 - Retry logic with exponential backoff
 - Fallback responses on errors
-- Streaming support (future)
+- **HTTP Streaming support** - Real-time token-by-token responses using Server-Sent Events (SSE)
+
+**Key Methods:**
+- `sendMessage(messages)` - Standard request/response (waits for complete response)
+- `sendMessageStream(messages)` - **Async generator** that yields text chunks as they arrive from Gemini
+- `sendMessageWithFallback(messages)` - Standard method with retry logic
+- `switchModel(modelName)` - Switch between available Gemini models
+- `testConnection()` - Test API connectivity
 
 ## 🗄️ Database
 
@@ -333,14 +357,23 @@ All responses follow the standard `ApiResponse<T>` format with consistent error 
 
 ### Chat Endpoints
 
-| Endpoint                  | Method | Auth | Description          |
-|---------------------------|--------|------|----------------------|
-| `/api/chats`              | POST   | Yes  | Create new chat      |
-| `/api/chats`              | GET    | Yes  | Get all user's chats |
-| `/api/chats/:id`          | GET    | Yes  | Get chat by ID       |
-| `/api/chats/:id`          | PUT    | Yes  | Update chat          |
-| `/api/chats/:id`          | DELETE | Yes  | Delete chat          |
-| `/api/chats/:id/messages` | POST   | Yes  | Send message         |
+| Endpoint                         | Method | Auth | Description                    |
+|----------------------------------|--------|------|--------------------------------|
+| `/api/chats`                     | POST   | Yes  | Create new chat                |
+| `/api/chats`                     | GET    | Yes  | Get all user's chats           |
+| `/api/chats/:id`                 | GET    | Yes  | Get chat by ID                 |
+| `/api/chats/:id`                 | PUT    | Yes  | Update chat                    |
+| `/api/chats/:id`                 | DELETE | Yes  | Delete chat                    |
+| `/api/chats/:id/messages`        | POST   | Yes  | Send message (REST)            |
+| `/api/chats/:id/messages/stream` | POST   | Yes  | Send message (SSE streaming)   |
+
+### Anonymous Chat Endpoints
+
+| Endpoint                                   | Method | Auth | Description                          |
+|--------------------------------------------|--------|------|--------------------------------------|
+| `/api/anonymous/chats`                     | POST   | No   | Create anonymous chat                |
+| `/api/anonymous/chats/:id/messages`        | POST   | No   | Send message to anonymous chat (REST)|
+| `/api/anonymous/chats/:id/messages/stream` | POST   | No   | Send message (SSE streaming)         |
 
 ### Health Check
 

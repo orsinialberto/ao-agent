@@ -35,16 +35,22 @@ The `GeminiService` class provides a clean interface to the Google Generative AI
 
 ### API Endpoints
 
-The integration provides the following REST endpoints:
+The integration provides the following endpoints:
 
+**REST Endpoints:**
 - `POST /api/chats` - Create new chat
 - `GET /api/chats` - List all chats
 - `GET /api/chats/:chatId` - Get specific chat
-- `POST /api/chats/:chatId/messages` - Send message
+- `POST /api/chats/:chatId/messages` - Send message (waits for complete response)
 - `GET /api/test/gemini` - Test Gemini connection
+
+**Streaming Endpoints (SSE):**
+- `POST /api/chats/:chatId/messages/stream` - Send message with streaming response
+- `POST /api/anonymous/chats/:chatId/messages/stream` - Anonymous streaming
 
 ### Usage Example
 
+**Standard REST (waits for complete response):**
 ```typescript
 // Create a new chat with initial message
 const response = await fetch('/api/chats', {
@@ -65,6 +71,50 @@ const messageResponse = await fetch('/api/chats/chat123/messages', {
     role: 'user'
   })
 });
+```
+
+**HTTP Streaming (SSE - real-time responses):**
+```typescript
+// Send a message with streaming response
+const response = await fetch('/api/chats/chat123/messages/stream', {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer <token>'
+  },
+  body: JSON.stringify({
+    content: 'Tell me about AI',
+    role: 'user'
+  })
+});
+
+// Read the stream
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  
+  const text = decoder.decode(value);
+  const lines = text.split('\n\n');
+  
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      const data = JSON.parse(line.slice(6));
+      
+      if (data.type === 'chunk') {
+        // Append chunk to message display
+        console.log('Chunk:', data.content);
+      } else if (data.type === 'done') {
+        // Final message with ID saved to database
+        console.log('Complete:', data.message);
+      } else if (data.type === 'error') {
+        console.error('Error:', data.error);
+      }
+    }
+  }
+}
 ```
 
 ### Environment Configuration
@@ -89,20 +139,25 @@ Run tests with:
 npm test
 ```
 
-### Future Enhancements
+### Implemented Features
 
-This integration sets the foundation for:
+1. **HTTP Streaming (SSE)** ✅
+   - Real-time token-by-token responses
+   - Server-Sent Events for efficient streaming
+   - Smooth UI updates during streaming
+   - "AI is thinking..." indicator before first chunk
+
+2. **MCP Integration** ✅
+   - Tool discovery and execution
+   - Dynamic capability management
+
+### Future Enhancements
 
 1. **Multi-Model Support** (Phase 3):
    - Easy switching between LLM providers
    - Model comparison capabilities
 
-2. **MCP Integration** (Phase 2):
-   - Tool discovery and execution
-   - Dynamic capability management
-
-3. **Advanced Features**:
-   - Streaming responses
+2. **Advanced Features**:
    - Token usage tracking
    - Response caching
 
