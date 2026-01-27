@@ -151,7 +151,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
   const { 
     currentChat, 
     messages, 
-    isLoading, 
+    isLoading,
+    isStreaming,
     error, 
     createChat, 
     loadChat,
@@ -190,12 +191,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
     }
   }, [currentChat, currentChatId, onChatCreated])
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages change (smooth scrolling)
+  // Only auto-scroll if user is near the bottom (within 150px threshold)
   useEffect(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+    const container = messagesContainerRef.current
+    if (container && messagesEndRef.current) {
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150
+      
+      // Auto-scroll if user is near bottom or if streaming is active
+      if (isNearBottom || isStreaming) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      }
     }
-  }, [messages, isLoading])
+  }, [messages, isLoading, isStreaming])
 
   // Handle wheel event on main area (not sidebar) to scroll chat
   useEffect(() => {
@@ -317,7 +325,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
           </div>
         </div>
       ) : (
-        <div ref={messagesContainerRef} className="space-y-2 mb-3 flex-1 overflow-y-auto overflow-x-hidden min-h-0 max-h-[calc(100vh-16rem)] scrollbar-hide px-6 pt-6">
+        <div ref={messagesContainerRef} className="space-y-2 mb-3 flex-1 overflow-y-auto overflow-x-hidden min-h-0 max-h-[calc(100vh-16rem)] scrollbar-hide scroll-smooth-chat px-6 pt-6">
           {messages.map((message: Message) => (
             <MessageItem
               key={message.id}
@@ -329,8 +337,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
             />
           ))}
           
-          {/* Loading indicator */}
-          {isLoading && (
+          {/* Loading indicator - only show when loading but not streaming (streaming shows content directly) */}
+          {isLoading && !isStreaming && (
             <div className="flex justify-start">
               <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 transition-colors">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400 dark:border-gray-500"></div>
@@ -401,7 +409,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
             </div>
             {/* Model selector overlay - positioned outside container to avoid clipping */}
             <Listbox value={selectedModel} onChange={setSelectedModel}>
-              <div className="absolute left-3.5 bottom-3.5 text-xs">
+              <div className="absolute left-3.5 bottom-3.5 text-xs z-[70]">
                 <Listbox.Button
                   className="px-2 py-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 bg-transparent hover:bg-gray-50/30 dark:hover:bg-gray-700/30 focus:bg-white dark:focus:bg-gray-700 border-none outline-none rounded shadow-none inline-flex items-center gap-1 transition-colors"
                   aria-label={t('chat.model') ?? 'Model'}
@@ -424,7 +432,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
                   leaveTo="opacity-0"
                 >
                   <Listbox.Options
-                    className="absolute left-0 top-full mt-1 max-h-60 w-max min-w-[10rem] overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-xs shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none z-[60] transition-colors"
+                    className="absolute left-0 top-full mt-1 max-h-60 w-max min-w-[10rem] overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-xs shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none z-[90] pointer-events-auto transition-colors"
                   >
                     {availableModels.map((model) => (
                       <Listbox.Option

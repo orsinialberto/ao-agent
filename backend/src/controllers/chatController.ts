@@ -508,6 +508,182 @@ export class ChatController {
   }
 
   /**
+   * Send a streaming message to an existing chat (authenticated)
+   * Uses Server-Sent Events (SSE) to stream the response
+   */
+  async sendMessageStream(req: Request<{ chatId: string }, any, CreateMessageRequest>, res: Response) {
+    const { chatId } = req.params;
+    const { content, role = MessageRole.USER, model } = req.body;
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    res.flushHeaders();
+
+    try {
+      // req.user is guaranteed by authenticate middleware
+      if (!content || !content.trim()) {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Message content is required' })}\n\n`);
+        res.end();
+        return;
+      }
+
+      // Check if chat exists and belongs to user
+      const chat = await databaseService.getChat(chatId, req.user!.userId);
+      if (!chat) {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Chat not found' })}\n\n`);
+        res.end();
+        return;
+      }
+
+      // Switch model if requested
+      if (model) {
+        this.handleModelSwitch(model);
+      }
+
+      // Add user message to database
+      await databaseService.addMessage(chatId, role, content.trim());
+
+      // Get chat history for context
+      const chatHistory = await databaseService.getMessages(chatId);
+
+      let fullContent = '';
+
+      try {
+        // Stream chunks to client
+        for await (const chunk of geminiService.sendMessageStream(chatHistory)) {
+          fullContent += chunk;
+          res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
+        }
+
+        // Save complete message to database
+        const assistantMessage = await databaseService.addMessage(
+          chatId,
+          MessageRole.ASSISTANT,
+          fullContent
+        );
+
+        // Send completion event with full message
+        res.write(`data: ${JSON.stringify({ type: 'done', message: assistantMessage })}\n\n`);
+        res.end();
+      } catch (error) {
+        console.error('Error streaming AI response:', error);
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'The AI service is temporarily unavailable. Please try again in a few moments.' })}\n\n`);
+        res.end();
+      }
+    } catch (error) {
+      console.error('Error in streaming message:', error);
+      
+      // Handle model validation errors
+      if (error instanceof Error && error.message.includes('Model')) {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+      } else {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Failed to send message' })}\n\n`);
+      }
+      res.end();
+    }
+  }
+
+  /**
+   * Send a streaming message to an anonymous chat (public endpoint)
+   * Uses Server-Sent Events (SSE) to stream the response
+   */
+  async sendAnonymousMessageStream(req: Request<{ chatId: string }, any, CreateMessageRequest>, res: Response) {
+    const { chatId } = req.params;
+    const { content, role = MessageRole.USER, model } = req.body;
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    res.flushHeaders();
+
+    try {
+      if (!content || !content.trim()) {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Message content is required' })}\n\n`);
+        res.end();
+        return;
+      }
+
+      // Check if chat exists in memory
+      const anonymousChat = this.anonymousChats.get(chatId);
+      if (!anonymousChat) {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Anonymous chat not found' })}\n\n`);
+        res.end();
+        return;
+      }
+
+      // Switch model if requested
+      if (model) {
+        this.handleModelSwitch(model);
+      }
+
+      // Create user message
+      const userMessage: Message = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        chatId: chatId,
+        role: role,
+        content: content.trim(),
+        createdAt: new Date()
+      };
+
+      // Add user message to chat
+      anonymousChat.messages.push(userMessage);
+      anonymousChat.updatedAt = new Date();
+
+      let fullContent = '';
+
+      try {
+        // Stream chunks to client
+        for await (const chunk of geminiService.sendMessageStream(anonymousChat.messages)) {
+          fullContent += chunk;
+          res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
+        }
+
+        // Create assistant message
+        const assistantMessage: Message = {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          chatId: chatId,
+          role: MessageRole.ASSISTANT,
+          content: fullContent,
+          createdAt: new Date()
+        };
+
+        // Add assistant message to chat
+        anonymousChat.messages.push(assistantMessage);
+        anonymousChat.updatedAt = new Date();
+
+        // Update chat in memory
+        this.anonymousChats.set(chatId, anonymousChat);
+
+        // Send completion event with full message
+        res.write(`data: ${JSON.stringify({ type: 'done', message: assistantMessage })}\n\n`);
+        res.end();
+      } catch (error) {
+        console.error('Error streaming AI response:', error);
+        // Remove user message on error
+        anonymousChat.messages.pop();
+        anonymousChat.updatedAt = new Date();
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'The AI service is temporarily unavailable. Please try again in a few moments.' })}\n\n`);
+        res.end();
+      }
+    } catch (error) {
+      console.error('Error in anonymous streaming message:', error);
+      
+      // Handle model validation errors
+      if (error instanceof Error && error.message.includes('Model')) {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+      } else {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Failed to send anonymous message' })}\n\n`);
+      }
+      res.end();
+    }
+  }
+
+  /**
    * Migrate anonymous chats to database (protected endpoint, requires authentication)
    * Creates chats in database for the authenticated user
    */

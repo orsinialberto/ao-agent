@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { apiService, Chat, Message, CreateChatRequest, CreateMessageRequest, ApiResponse } from '../services/api';
 import { AnonymousChatService } from '../services/anonymousChatService';
 import { t } from '../utils/i18n';
@@ -8,6 +8,7 @@ export interface UseChatReturn {
   currentChat: Chat | null;
   messages: Message[];
   isLoading: boolean;
+  isStreaming: boolean;
   error: string | null;
   
   // Actions
@@ -59,7 +60,11 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
   const [currentChat, setCurrentChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Ref to track streaming message ID for updates
+  const streamingMessageIdRef = useRef<string | null>(null);
 
   const createChat = useCallback(async (request: CreateChatRequest) => {
     setIsLoading(true);
@@ -142,6 +147,7 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
     if (!currentChat || !content.trim()) return;
     
     setIsLoading(true);
+    setIsStreaming(false); // Start with streaming false - will be set true on first chunk
     setError(null);
 
     // Add user message immediately
@@ -153,61 +159,86 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
       createdAt: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // Create placeholder for streaming assistant message
+    const streamingMessageId = `streaming_${Date.now()}`;
+    streamingMessageIdRef.current = streamingMessageId;
+    
+    const streamingMessage: Message = {
+      id: streamingMessageId,
+      chatId: currentChat.id,
+      role: 'assistant',
+      content: '',
+      createdAt: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage, streamingMessage]);
+
+    const request: CreateMessageRequest = {
+      chatId: currentChat.id,
+      content: content.trim(),
+      role: 'user'
+    };
+    if (options?.model) {
+      (request as any).model = options.model;
+    }
+
+    // Handlers for streaming
+    const onChunk = (chunk: string) => {
+      // Set streaming to true on first chunk received
+      setIsStreaming(true);
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === streamingMessageIdRef.current
+            ? { ...msg, content: msg.content + chunk }
+            : msg
+        )
+      );
+    };
+
+    const onDone = (finalMessage: Message) => {
+      setMessages(prev => {
+        const newMessages = prev.map(msg => 
+          msg.id === streamingMessageIdRef.current ? finalMessage : msg
+        );
+        
+        // Update chat in sessionStorage if anonymous
+        if (isAnonymous && currentChat) {
+          const updatedChat: Chat = {
+            ...currentChat,
+            messages: newMessages,
+            updatedAt: new Date()
+          };
+          AnonymousChatService.updateChat(currentChat.id, updatedChat);
+          setCurrentChat(updatedChat);
+        }
+        
+        return newMessages;
+      });
+      
+      streamingMessageIdRef.current = null;
+      setIsStreaming(false);
+      setIsLoading(false);
+    };
+
+    const onError = (errorMsg: string) => {
+      // Remove streaming message on error
+      setMessages(prev => prev.filter(msg => 
+        msg.id !== streamingMessageIdRef.current && msg.id !== userMessage.id
+      ));
+      streamingMessageIdRef.current = null;
+      setError(errorMsg);
+      setIsStreaming(false);
+      setIsLoading(false);
+    };
 
     try {
-      const request: CreateMessageRequest = {
-        chatId: currentChat.id,
-        content: content.trim(),
-        role: 'user'
-      };
-      if (options?.model) {
-        (request as any).model = options.model;
-      }
-
-      let response: ApiResponse<Message>;
-      
       if (isAnonymous) {
-        // Use anonymous endpoint
-        response = await apiService.sendAnonymousMessage(currentChat.id, request);
+        await apiService.sendAnonymousMessageStream(currentChat.id, request, onChunk, onDone, onError);
       } else {
-        // Use authenticated endpoint
-        response = await apiService.sendMessage(currentChat.id, request);
-      }
-      
-      if (response.success && response.data) {
-        // Replace temp message with real user message and add AI response
-        const assistantMessage = response.data;
-        setMessages(prev => {
-          const filtered = prev.filter(msg => msg.id !== userMessage.id);
-          const newMessages = [...filtered, userMessage, assistantMessage];
-          
-          // Update chat in sessionStorage if anonymous
-          if (isAnonymous && currentChat) {
-            const updatedChat: Chat = {
-              ...currentChat,
-              messages: newMessages,
-              updatedAt: new Date()
-            };
-            AnonymousChatService.updateChat(currentChat.id, updatedChat);
-            setCurrentChat(updatedChat);
-          }
-          
-          return newMessages;
-        });
-      } else {
-        // Remove temp message on error
-        setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
-        
-        // Show localized error message
-        setError(getErrorMessage(response, 'send'));
+        await apiService.sendMessageStream(currentChat.id, request, onChunk, onDone, onError);
       }
     } catch (err) {
-      // Remove temp message on error
-      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
-      setError(t('errors.unknown_error'));
-    } finally {
-      setIsLoading(false);
+      onError(t('errors.unknown_error'));
     }
   }, [currentChat, isAnonymous]);
 
@@ -258,6 +289,7 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
     currentChat,
     messages,
     isLoading,
+    isStreaming,
     error,
     createChat,
     loadChat,

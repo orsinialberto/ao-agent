@@ -15,22 +15,12 @@ vi.mock('../authService', () => ({
 
 const mockAuthService = vi.mocked(authService);
 
-// Mock window.location
-const mockLocation = {
-  href: ''
-};
-Object.defineProperty(window, 'location', {
-  value: mockLocation,
-  writable: true
-});
-
 // Mock fetch
 (globalThis as any).fetch = vi.fn() as unknown as typeof fetch;
 
-describe('ApiService - OAuth Token Expiration', () => {
+describe('ApiService - Token Expiration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLocation.href = '';
     ((globalThis as any).fetch as any).mockClear();
   });
 
@@ -38,8 +28,8 @@ describe('ApiService - OAuth Token Expiration', () => {
     vi.clearAllMocks();
   });
 
-  describe('OAuth Token Expiration Handling', () => {
-    it('should detect OAuth token expiration and redirect with error param', async () => {
+  describe('Token Expiration Handling - Anonymous Mode', () => {
+    it('should detect OAuth token expiration and switch to anonymous mode', async () => {
       const pastTime = Math.floor(Date.now() / 1000) - 3600;
       const futureTime = Math.floor(Date.now() / 1000) + 3600;
       
@@ -57,13 +47,13 @@ describe('ApiService - OAuth Token Expiration', () => {
       const result = await apiService.getChats();
 
       expect(mockAuthService.removeToken).toHaveBeenCalled();
-      expect(mockLocation.href).toBe('/login?error=oauth_expired');
+      // Should NOT redirect - user remains in anonymous mode
       expect(result.success).toBe(false);
       expect(result.error).toBe('OAUTH_TOKEN_EXPIRED');
-      expect(result.message).toBe('OAuth token has expired. Please log in again.');
+      expect(result.message).toBe('OAuth token has expired. You are now using anonymous mode.');
     });
 
-    it('should detect JWT token expiration and redirect without error param', async () => {
+    it('should detect JWT token expiration and switch to anonymous mode', async () => {
       const pastTime = Math.floor(Date.now() / 1000) - 3600;
       
       mockAuthService.hasToken.mockReturnValue(true);
@@ -78,10 +68,10 @@ describe('ApiService - OAuth Token Expiration', () => {
       const result = await apiService.getChats();
 
       expect(mockAuthService.removeToken).toHaveBeenCalled();
-      expect(mockLocation.href).toBe('/login');
+      // Should NOT redirect - user remains in anonymous mode
       expect(result.success).toBe(false);
       expect(result.error).toBe('TOKEN_EXPIRED');
-      expect(result.message).toBe('Your session has expired. Please log in again.');
+      expect(result.message).toBe('Your session has expired. You are now using anonymous mode.');
     });
 
     it('should handle expired token when oauthTokenExpiry is not present', async () => {
@@ -99,7 +89,6 @@ describe('ApiService - OAuth Token Expiration', () => {
       const result = await apiService.getChats();
 
       expect(mockAuthService.removeToken).toHaveBeenCalled();
-      expect(mockLocation.href).toBe('/login');
       expect(result.success).toBe(false);
       expect(result.error).toBe('TOKEN_EXPIRED');
     });
@@ -112,7 +101,6 @@ describe('ApiService - OAuth Token Expiration', () => {
       const result = await apiService.getChats();
 
       expect(mockAuthService.removeToken).toHaveBeenCalled();
-      expect(mockLocation.href).toBe('/login');
       expect(result.success).toBe(false);
       expect(result.error).toBe('TOKEN_EXPIRED');
     });
@@ -136,14 +124,13 @@ describe('ApiService - OAuth Token Expiration', () => {
       const result = await apiService.getChats();
 
       expect(mockAuthService.removeToken).not.toHaveBeenCalled();
-      expect(mockLocation.href).toBe('');
       expect(result.success).toBe(true);
       expect(result.data).toEqual(mockResponse.data);
     });
   });
 
   describe('Backend OAuth Token Expiration Response', () => {
-    it('should handle OAUTH_TOKEN_EXPIRED error from backend', async () => {
+    it('should handle OAUTH_TOKEN_EXPIRED error from backend and switch to anonymous mode', async () => {
       mockAuthService.hasToken.mockReturnValue(true);
       mockAuthService.isTokenExpired.mockReturnValue(false);
       mockAuthService.getToken.mockReturnValue('valid-token');
@@ -154,17 +141,17 @@ describe('ApiService - OAuth Token Expiration', () => {
         json: async () => ({
           success: false,
           error: 'OAUTH_TOKEN_EXPIRED',
-          message: 'OAuth token has expired. Please log out and log in again.'
+          message: 'OAuth token has expired. You are now using anonymous mode.'
         })
       });
 
       const result = await apiService.getChats();
 
       expect(mockAuthService.removeToken).toHaveBeenCalled();
-      expect(mockLocation.href).toBe('/login?error=oauth_expired');
+      // Should NOT redirect - user remains in anonymous mode
       expect(result.success).toBe(false);
       expect(result.error).toBe('OAUTH_TOKEN_EXPIRED');
-      expect(result.message).toBe('OAuth token has expired. Please log out and log in again.');
+      expect(result.message).toBe('OAuth token has expired. You are now using anonymous mode.');
     });
   });
 });

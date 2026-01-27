@@ -162,6 +162,11 @@ app.post('/api/anonymous/chats/:chatId/messages', anonymousLimiter, (req: Reques
   chatController.sendAnonymousMessage(req, res).catch(next);
 });
 
+// Streaming endpoint for anonymous chats (SSE)
+app.post('/api/anonymous/chats/:chatId/messages/stream', anonymousLimiter, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
+  chatController.sendAnonymousMessageStream(req, res).catch(next);
+});
+
 // Apply general rate limiting to remaining routes
 // Anonymous routes are already handled above with anonymousLimiter
 app.use((req, res, next) => {
@@ -191,6 +196,11 @@ app.delete('/api/chats/:chatId', authenticate, (req: Request<{ chatId: string }>
 });
 app.post('/api/chats/:chatId/messages', authenticate, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
   chatController.sendMessage(req, res).catch(next);
+});
+
+// Streaming endpoint for authenticated chats (SSE)
+app.post('/api/chats/:chatId/messages/stream', authenticate, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
+  chatController.sendMessageStream(req, res).catch(next);
 });
 app.post('/api/chats/migrate', authenticate, (req: Request, res: Response, next: NextFunction) => {
   chatController.migrateAnonymousChats(req, res).catch(next);

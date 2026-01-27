@@ -252,6 +252,53 @@ Remember: Both charts and maps render directly and interactively in this interfa
   }
 
   /**
+   * Send a message to Gemini and stream the response
+   * Uses Server-Sent Events (SSE) pattern - yields chunks as they arrive
+   */
+  async *sendMessageStream(messages: Message[]): AsyncGenerator<string, void, unknown> {
+    // Initialize if not already done
+    this.initialize();
+    
+    // Convert messages to Gemini format
+    const history = this.convertMessagesToHistory(messages);
+    
+    // Prepend system instruction as first message
+    const historyWithSystemInstruction = [
+      {
+        role: 'user',
+        parts: [this.systemInstruction]
+      },
+      {
+        role: 'model',
+        parts: ['Understood! I will create interactive charts using the chart syntax you provided. Whenever users ask for visualizations, I will use the special markdown code blocks with chart:line, chart:bar, chart:pie, or chart:area followed by properly formatted JSON data. I will not suggest Python code or external tools. The charts will render directly in the interface.']
+      },
+      ...history
+    ];
+    
+    // Start a chat session
+    const chat = this.model.startChat({
+      history: historyWithSystemInstruction,
+    });
+
+    // Get the last user message
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== MessageRole.USER) {
+      throw new Error('Last message must be from user');
+    }
+
+    // Send message and stream response
+    const result = await chat.sendMessageStream(lastMessage.content);
+    
+    // Yield each chunk as it arrives
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) {
+        yield text;
+      }
+    }
+  }
+
+  /**
    * Send message with retry logic and exponential backoff
    */
   private async sendMessageWithRetry(messages: Message[], attempt: number): Promise<GeminiResponse> {

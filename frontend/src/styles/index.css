@@ -104,6 +104,8 @@
     padding: 12px 20px;
     border-radius: 20px;
     border: 1px solid var(--aic-textarea-border);
+    position: relative;
+    z-index: 0;
     background: var(--aic-textarea-bg);
     color: var(--aic-textarea-fg);
     font-size: 16px;
@@ -224,6 +226,11 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Safari and Chrome */
+  }
+
+  /* Smooth scroll behavior for chat messages container */
+  .scroll-smooth-chat {
+    scroll-behavior: smooth;
   }
 
   /* Dropdown option hover to match sidebar hover/active feel */

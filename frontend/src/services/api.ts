@@ -315,6 +315,194 @@ class ApiService {
     });
   }
 
+  /**
+   * Send a streaming message to an authenticated chat
+   * Uses Server-Sent Events (SSE) to receive chunks
+   */
+  async sendMessageStream(
+    chatId: string,
+    request: CreateMessageRequest,
+    onChunk: (chunk: string) => void,
+    onDone: (message: Message) => void,
+    onError: (error: string) => void
+  ): Promise<void> {
+    try {
+      // Check if token is expired before making request
+      if (authService.hasToken() && authService.isTokenExpired()) {
+        authService.removeToken();
+        onError('Your session has expired. You are now using anonymous mode.');
+        return;
+      }
+
+      const token = authService.getToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${this.baseUrl}/chats/${chatId}/messages/stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        onError(errorData.error || `HTTP error! status: ${response.status}`);
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        onError('No response body');
+        return;
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        
+        // Keep the last potentially incomplete chunk in the buffer
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'chunk') {
+                onChunk(data.content);
+              } else if (data.type === 'done') {
+                onDone(data.message);
+              } else if (data.type === 'error') {
+                onError(data.error);
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE data:', e);
+            }
+          }
+        }
+      }
+
+      // Process any remaining data in buffer
+      if (buffer.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(buffer.slice(6));
+          if (data.type === 'chunk') {
+            onChunk(data.content);
+          } else if (data.type === 'done') {
+            onDone(data.message);
+          } else if (data.type === 'error') {
+            onError(data.error);
+          }
+        } catch (e) {
+          // Ignore incomplete data
+        }
+      }
+    } catch (error) {
+      console.error('Streaming request failed:', error);
+      onError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  /**
+   * Send a streaming message to an anonymous chat
+   * Uses Server-Sent Events (SSE) to receive chunks
+   */
+  async sendAnonymousMessageStream(
+    chatId: string,
+    request: CreateMessageRequest,
+    onChunk: (chunk: string) => void,
+    onDone: (message: Message) => void,
+    onError: (error: string) => void
+  ): Promise<void> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      const response = await fetch(`${this.baseUrl}/anonymous/chats/${chatId}/messages/stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        onError(errorData.error || `HTTP error! status: ${response.status}`);
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        onError('No response body');
+        return;
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        
+        // Keep the last potentially incomplete chunk in the buffer
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'chunk') {
+                onChunk(data.content);
+              } else if (data.type === 'done') {
+                onDone(data.message);
+              } else if (data.type === 'error') {
+                onError(data.error);
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE data:', e);
+            }
+          }
+        }
+      }
+
+      // Process any remaining data in buffer
+      if (buffer.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(buffer.slice(6));
+          if (data.type === 'chunk') {
+            onChunk(data.content);
+          } else if (data.type === 'done') {
+            onDone(data.message);
+          } else if (data.type === 'error') {
+            onError(data.error);
+          }
+        } catch (e) {
+          // Ignore incomplete data
+        }
+      }
+    } catch (error) {
+      console.error('Streaming request failed:', error);
+      onError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
   // Migrate anonymous chats to database (requires authentication)
   async migrateAnonymousChats(chats: Chat[]): Promise<ApiResponse<{ migratedChats: Chat[] }>> {
     return this.request<{ migratedChats: Chat[] }>('/chats/migrate', {
