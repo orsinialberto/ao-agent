@@ -213,42 +213,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
     }
   }, [messages, isLoading, isStreaming])
 
-  // Handle wheel event on main area (not sidebar) to scroll chat
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      // Check if the event target is inside the sidebar
-      const sidebar = document.querySelector('[data-sidebar]')
-      if (sidebar && sidebar.contains(e.target as Node)) {
-        return // Don't scroll chat if scrolling sidebar
-      }
-
-      // Check if messages container exists and has scrollable content
-      if (messagesContainerRef.current && messagesContainerRef.current.scrollHeight > messagesContainerRef.current.clientHeight) {
-        const container = messagesContainerRef.current
-        const isScrollingUp = e.deltaY < 0
-        const isScrollingDown = e.deltaY > 0
-        const isAtTop = container.scrollTop <= 0
-        const isAtBottom = container.scrollTop >= container.scrollHeight - container.clientHeight - 1
-
-        // Only transfer scroll if:
-        // - Scrolling up and not at top, OR
-        // - Scrolling down and not at bottom
-        if ((isScrollingUp && !isAtTop) || (isScrollingDown && !isAtBottom)) {
-          e.preventDefault()
-          container.scrollTop += e.deltaY
-        }
-      }
-    }
-
-    // Add listener to main element
-    const mainElement = document.querySelector('main')
-    if (mainElement) {
-      mainElement.addEventListener('wheel', handleWheel, { passive: false })
-      return () => {
-        mainElement.removeEventListener('wheel', handleWheel)
-      }
-    }
-  }, [messages])
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
@@ -333,7 +297,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
           </div>
         </div>
       ) : (
-        <div ref={messagesContainerRef} className="space-y-2 mb-3 flex-1 overflow-y-auto overflow-x-hidden min-h-0 max-h-[calc(100vh-16rem)] scrollbar-hide scroll-smooth-chat px-6 pt-6">
+        <div ref={messagesContainerRef} className="space-y-2 mb-3 flex-1 overflow-y-auto overflow-x-hidden min-h-0 max-h-[calc(100vh-16rem)] scrollbar-hide overscroll-contain px-6 pt-6">
           {messages.map((message: Message) => (
             <MessageItem
               key={message.id}
