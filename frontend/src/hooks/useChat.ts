@@ -65,6 +65,10 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
   
   // Ref to track streaming message ID for updates
   const streamingMessageIdRef = useRef<string | null>(null);
+  
+  // Refs for smooth streaming (buffering chunks with requestAnimationFrame)
+  const chunkBufferRef = useRef<string>('');
+  const rafIdRef = useRef<number | null>(null);
 
   const createChat = useCallback(async (request: CreateChatRequest) => {
     setIsLoading(true);
@@ -182,20 +186,45 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
       (request as any).model = options.model;
     }
 
-    // Handlers for streaming
+    // Handlers for streaming with buffering for smooth rendering
+    const flushBuffer = () => {
+      if (chunkBufferRef.current) {
+        const bufferedContent = chunkBufferRef.current;
+        chunkBufferRef.current = '';
+        
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === streamingMessageIdRef.current
+              ? { ...msg, content: msg.content + bufferedContent }
+              : msg
+          )
+        );
+      }
+      rafIdRef.current = null;
+    };
+
     const onChunk = (chunk: string) => {
       // Set streaming to true on first chunk received
       setIsStreaming(true);
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === streamingMessageIdRef.current
-            ? { ...msg, content: msg.content + chunk }
-            : msg
-        )
-      );
+      
+      // Accumulate chunk in buffer
+      chunkBufferRef.current += chunk;
+      
+      // Schedule UI update with requestAnimationFrame for smooth rendering
+      // This batches multiple chunks into single frame updates (~60fps)
+      if (!rafIdRef.current) {
+        rafIdRef.current = requestAnimationFrame(flushBuffer);
+      }
     };
 
     const onDone = (finalMessage: Message) => {
+      // Cancel any pending RAF and flush remaining buffer
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      chunkBufferRef.current = '';
+      
       setMessages(prev => {
         const newMessages = prev.map(msg => 
           msg.id === streamingMessageIdRef.current ? finalMessage : msg
@@ -221,6 +250,13 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
     };
 
     const onError = (errorMsg: string) => {
+      // Cancel any pending RAF and clear buffer
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      chunkBufferRef.current = '';
+      
       // Remove streaming message on error
       setMessages(prev => prev.filter(msg => 
         msg.id !== streamingMessageIdRef.current && msg.id !== userMessage.id
