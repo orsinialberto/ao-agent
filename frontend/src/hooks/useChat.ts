@@ -9,6 +9,7 @@ export interface UseChatReturn {
   messages: Message[];
   isLoading: boolean;
   isStreaming: boolean;
+  isTyping: boolean; // True while typewriter effect is active
   error: string | null;
   
   // Actions
@@ -55,58 +56,236 @@ function getErrorMessage(response: ApiResponse<any>, context: 'send' | 'load' | 
   }
 }
 
+// Typewriter configuration
+const TYPEWRITER_CHAR_DELAY_MS = 5; // Delay between each character (lower = faster)
+const TYPEWRITER_CHUNK_SIZE = 1; // Number of characters to render per tick
+
 export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
   const { isAnonymous = false } = options;
   const [currentChat, setCurrentChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isTyping, setIsTyping] = useState(false); // Typewriter effect active
   const [error, setError] = useState<string | null>(null);
   
   // Ref to track streaming message ID for updates
   const streamingMessageIdRef = useRef<string | null>(null);
   
-  // Refs for smooth streaming (buffering chunks with requestAnimationFrame)
-  const chunkBufferRef = useRef<string>('');
-  const rafIdRef = useRef<number | null>(null);
+  // Refs for typewriter effect
+  const pendingTextRef = useRef<string>(''); // Text waiting to be typed
+  const displayedTextRef = useRef<string>(''); // Text already displayed
+  const typewriterIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const streamingCompleteRef = useRef<boolean>(false); // Backend finished sending
+  const finalMessageRef = useRef<Message | null>(null); // Final message from backend
 
   const createChat = useCallback(async (request: CreateChatRequest) => {
     setIsLoading(true);
+    setIsStreaming(false);
+    setIsTyping(false);
     setError(null);
+    
+    // Reset typewriter state
+    pendingTextRef.current = '';
+    displayedTextRef.current = '';
+    streamingCompleteRef.current = false;
+    finalMessageRef.current = null;
+    
+    const initialMessage = request.initialMessage?.trim();
+    const model = request.model;
     
     // Add user message immediately if initialMessage is provided
     let tempUserMessage: Message | null = null;
-    if (request.initialMessage) {
+    if (initialMessage) {
       tempUserMessage = {
         id: `temp_${Date.now()}`,
         chatId: '', // Will be updated when chat is created
         role: 'user',
-        content: request.initialMessage.trim(),
+        content: initialMessage,
         createdAt: new Date()
       };
       setMessages([tempUserMessage]);
     }
     
     try {
+      // Create chat WITHOUT initial message (we'll send it via streaming)
+      const createRequest: CreateChatRequest = {
+        title: request.title
+        // Don't include initialMessage - we'll stream it
+      };
+      
       let response: ApiResponse<Chat>;
       
       if (isAnonymous) {
-        // Use anonymous endpoint
-        response = await apiService.createAnonymousChat(request);
+        response = await apiService.createAnonymousChat(createRequest);
       } else {
-        // Use authenticated endpoint
-        response = await apiService.createChat(request);
+        response = await apiService.createChat(createRequest);
       }
       
       if (response.success && response.data) {
         const chat = response.data;
         setCurrentChat(chat);
-        // Replace temp message with real messages from server
-        setMessages(chat.messages || []);
         
-        // Save to sessionStorage if anonymous
+        // Save to sessionStorage if anonymous (without messages yet)
         if (isAnonymous) {
           AnonymousChatService.addChat(chat);
+        }
+        
+        // If there's an initial message, send it via streaming with typewriter
+        if (initialMessage) {
+          // Update temp user message with correct chatId
+          const userMessage: Message = {
+            ...tempUserMessage!,
+            chatId: chat.id
+          };
+          
+          // Create placeholder for streaming assistant message
+          const streamingMessageId = `streaming_${Date.now()}`;
+          streamingMessageIdRef.current = streamingMessageId;
+          
+          const streamingMessage: Message = {
+            id: streamingMessageId,
+            chatId: chat.id,
+            role: 'assistant',
+            content: '',
+            createdAt: new Date()
+          };
+          
+          setMessages([userMessage, streamingMessage]);
+          
+          const messageRequest: CreateMessageRequest = {
+            chatId: chat.id,
+            content: initialMessage,
+            role: 'user'
+          };
+          if (model) {
+            (messageRequest as any).model = model;
+          }
+          
+          // Typewriter tick function for initial message
+          const typewriterTick = () => {
+            if (pendingTextRef.current.length > 0) {
+              const chars = pendingTextRef.current.slice(0, TYPEWRITER_CHUNK_SIZE);
+              pendingTextRef.current = pendingTextRef.current.slice(TYPEWRITER_CHUNK_SIZE);
+              displayedTextRef.current += chars;
+              
+              setMessages(prev => 
+                prev.map(msg => 
+                  msg.id === streamingMessageIdRef.current
+                    ? { ...msg, content: displayedTextRef.current }
+                    : msg
+                )
+              );
+            } else if (streamingCompleteRef.current && finalMessageRef.current) {
+              if (typewriterIntervalRef.current) {
+                clearInterval(typewriterIntervalRef.current);
+                typewriterIntervalRef.current = null;
+              }
+              
+              const finalMsg = finalMessageRef.current;
+              setMessages(prev => {
+                const newMessages = prev.map(msg => 
+                  msg.id === streamingMessageIdRef.current ? finalMsg : msg
+                );
+                
+                if (isAnonymous && chat) {
+                  const updatedChat: Chat = {
+                    ...chat,
+                    messages: newMessages,
+                    updatedAt: new Date()
+                  };
+                  AnonymousChatService.updateChat(chat.id, updatedChat);
+                  setCurrentChat(updatedChat);
+                }
+                
+                return newMessages;
+              });
+              
+              streamingMessageIdRef.current = null;
+              setIsStreaming(false);
+              setIsTyping(false);
+              setIsLoading(false);
+            }
+          };
+          
+          const startTypewriter = () => {
+            if (!typewriterIntervalRef.current) {
+              setIsTyping(true);
+              typewriterIntervalRef.current = setInterval(typewriterTick, TYPEWRITER_CHAR_DELAY_MS);
+            }
+          };
+          
+          const onChunk = (chunk: string) => {
+            setIsStreaming(true);
+            pendingTextRef.current += chunk;
+            startTypewriter();
+          };
+          
+          const onDone = (finalMessage: Message) => {
+            streamingCompleteRef.current = true;
+            finalMessageRef.current = finalMessage;
+            
+            if (!typewriterIntervalRef.current) {
+              setMessages(prev => {
+                const newMessages = prev.map(msg => 
+                  msg.id === streamingMessageIdRef.current ? finalMessage : msg
+                );
+                
+                if (isAnonymous && chat) {
+                  const updatedChat: Chat = {
+                    ...chat,
+                    messages: newMessages,
+                    updatedAt: new Date()
+                  };
+                  AnonymousChatService.updateChat(chat.id, updatedChat);
+                  setCurrentChat(updatedChat);
+                }
+                
+                return newMessages;
+              });
+              
+              streamingMessageIdRef.current = null;
+              setIsStreaming(false);
+              setIsTyping(false);
+              setIsLoading(false);
+            }
+          };
+          
+          const onError = (errorMsg: string) => {
+            if (typewriterIntervalRef.current) {
+              clearInterval(typewriterIntervalRef.current);
+              typewriterIntervalRef.current = null;
+            }
+            pendingTextRef.current = '';
+            displayedTextRef.current = '';
+            streamingCompleteRef.current = false;
+            finalMessageRef.current = null;
+            
+            // Keep user message but remove streaming message
+            setMessages(prev => prev.filter(msg => 
+              msg.id !== streamingMessageIdRef.current
+            ));
+            streamingMessageIdRef.current = null;
+            setError(errorMsg);
+            setIsStreaming(false);
+            setIsTyping(false);
+            setIsLoading(false);
+          };
+          
+          // Send message via streaming
+          try {
+            if (isAnonymous) {
+              await apiService.sendAnonymousMessageStream(chat.id, messageRequest, onChunk, onDone, onError);
+            } else {
+              await apiService.sendMessageStream(chat.id, messageRequest, onChunk, onDone, onError);
+            }
+          } catch (err) {
+            onError(t('errors.unknown_error'));
+          }
+        } else {
+          // No initial message, just set the empty chat
+          setMessages(chat.messages || []);
+          setIsLoading(false);
         }
       } else {
         // Remove temp message on error
@@ -117,14 +296,12 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
         // If chat was created but LLM failed, still set the chat
         if (response.chatId) {
           if (isAnonymous) {
-            // For anonymous chats, try to load from sessionStorage
             const savedChat = AnonymousChatService.getChat(response.chatId);
             if (savedChat) {
               setCurrentChat(savedChat);
               setMessages(savedChat.messages || []);
             }
           } else {
-            // Load the created chat from API
             const chatResponse = await apiService.getChat(response.chatId);
             if (chatResponse.success && chatResponse.data) {
               setCurrentChat(chatResponse.data);
@@ -133,16 +310,14 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
           }
         }
         
-        // Show localized error message
         setError(getErrorMessage(response, 'create'));
+        setIsLoading(false);
       }
     } catch (err) {
-      // Remove temp message on error
       if (tempUserMessage) {
         setMessages([]);
       }
       setError(t('errors.unknown_error'));
-    } finally {
       setIsLoading(false);
     }
   }, [isAnonymous]);
@@ -151,8 +326,15 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
     if (!currentChat || !content.trim()) return;
     
     setIsLoading(true);
-    setIsStreaming(false); // Start with streaming false - will be set true on first chunk
+    setIsStreaming(false);
+    setIsTyping(false);
     setError(null);
+    
+    // Reset typewriter state
+    pendingTextRef.current = '';
+    displayedTextRef.current = '';
+    streamingCompleteRef.current = false;
+    finalMessageRef.current = null;
 
     // Add user message immediately
     const userMessage: Message = {
@@ -186,76 +368,118 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
       (request as any).model = options.model;
     }
 
-    // Handlers for streaming with buffering for smooth rendering
-    const flushBuffer = () => {
-      if (chunkBufferRef.current) {
-        const bufferedContent = chunkBufferRef.current;
-        chunkBufferRef.current = '';
+    // Typewriter tick function - releases characters one at a time
+    const typewriterTick = () => {
+      if (pendingTextRef.current.length > 0) {
+        // Take next character(s) from pending buffer
+        const chars = pendingTextRef.current.slice(0, TYPEWRITER_CHUNK_SIZE);
+        pendingTextRef.current = pendingTextRef.current.slice(TYPEWRITER_CHUNK_SIZE);
+        displayedTextRef.current += chars;
         
+        // Update message with displayed text
         setMessages(prev => 
           prev.map(msg => 
             msg.id === streamingMessageIdRef.current
-              ? { ...msg, content: msg.content + bufferedContent }
+              ? { ...msg, content: displayedTextRef.current }
               : msg
           )
         );
+      } else if (streamingCompleteRef.current && finalMessageRef.current) {
+        // No more pending text and streaming is complete - finalize
+        if (typewriterIntervalRef.current) {
+          clearInterval(typewriterIntervalRef.current);
+          typewriterIntervalRef.current = null;
+        }
+        
+        const finalMsg = finalMessageRef.current;
+        setMessages(prev => {
+          const newMessages = prev.map(msg => 
+            msg.id === streamingMessageIdRef.current ? finalMsg : msg
+          );
+          
+          // Update chat in sessionStorage if anonymous
+          if (isAnonymous && currentChat) {
+            const updatedChat: Chat = {
+              ...currentChat,
+              messages: newMessages,
+              updatedAt: new Date()
+            };
+            AnonymousChatService.updateChat(currentChat.id, updatedChat);
+            setCurrentChat(updatedChat);
+          }
+          
+          return newMessages;
+        });
+        
+        streamingMessageIdRef.current = null;
+        setIsStreaming(false);
+        setIsTyping(false);
+        setIsLoading(false);
       }
-      rafIdRef.current = null;
+    };
+
+    // Start typewriter interval
+    const startTypewriter = () => {
+      if (!typewriterIntervalRef.current) {
+        setIsTyping(true);
+        typewriterIntervalRef.current = setInterval(typewriterTick, TYPEWRITER_CHAR_DELAY_MS);
+      }
     };
 
     const onChunk = (chunk: string) => {
       // Set streaming to true on first chunk received
       setIsStreaming(true);
       
-      // Accumulate chunk in buffer
-      chunkBufferRef.current += chunk;
+      // Add chunk to pending buffer
+      pendingTextRef.current += chunk;
       
-      // Schedule UI update with requestAnimationFrame for smooth rendering
-      // This batches multiple chunks into single frame updates (~60fps)
-      if (!rafIdRef.current) {
-        rafIdRef.current = requestAnimationFrame(flushBuffer);
-      }
+      // Start typewriter if not already running
+      startTypewriter();
     };
 
     const onDone = (finalMessage: Message) => {
-      // Cancel any pending RAF and flush remaining buffer
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
+      // Mark streaming as complete and store final message
+      streamingCompleteRef.current = true;
+      finalMessageRef.current = finalMessage;
+      
+      // If typewriter is not running (no chunks received), finalize immediately
+      if (!typewriterIntervalRef.current) {
+        setMessages(prev => {
+          const newMessages = prev.map(msg => 
+            msg.id === streamingMessageIdRef.current ? finalMessage : msg
+          );
+          
+          if (isAnonymous && currentChat) {
+            const updatedChat: Chat = {
+              ...currentChat,
+              messages: newMessages,
+              updatedAt: new Date()
+            };
+            AnonymousChatService.updateChat(currentChat.id, updatedChat);
+            setCurrentChat(updatedChat);
+          }
+          
+          return newMessages;
+        });
+        
+        streamingMessageIdRef.current = null;
+        setIsStreaming(false);
+        setIsTyping(false);
+        setIsLoading(false);
       }
-      chunkBufferRef.current = '';
-      
-      setMessages(prev => {
-        const newMessages = prev.map(msg => 
-          msg.id === streamingMessageIdRef.current ? finalMessage : msg
-        );
-        
-        // Update chat in sessionStorage if anonymous
-        if (isAnonymous && currentChat) {
-          const updatedChat: Chat = {
-            ...currentChat,
-            messages: newMessages,
-            updatedAt: new Date()
-          };
-          AnonymousChatService.updateChat(currentChat.id, updatedChat);
-          setCurrentChat(updatedChat);
-        }
-        
-        return newMessages;
-      });
-      
-      streamingMessageIdRef.current = null;
-      setIsStreaming(false);
-      setIsLoading(false);
+      // Otherwise, typewriter will finalize when pending buffer is empty
     };
 
     const onError = (errorMsg: string) => {
-      // Cancel any pending RAF and clear buffer
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
+      // Stop typewriter and clear state
+      if (typewriterIntervalRef.current) {
+        clearInterval(typewriterIntervalRef.current);
+        typewriterIntervalRef.current = null;
       }
-      chunkBufferRef.current = '';
+      pendingTextRef.current = '';
+      displayedTextRef.current = '';
+      streamingCompleteRef.current = false;
+      finalMessageRef.current = null;
       
       // Remove streaming message on error
       setMessages(prev => prev.filter(msg => 
@@ -264,6 +488,7 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
       streamingMessageIdRef.current = null;
       setError(errorMsg);
       setIsStreaming(false);
+      setIsTyping(false);
       setIsLoading(false);
     };
 
@@ -326,6 +551,7 @@ export const useChat = (options: UseChatOptions = {}): UseChatReturn => {
     messages,
     isLoading,
     isStreaming,
+    isTyping,
     error,
     createChat,
     loadChat,

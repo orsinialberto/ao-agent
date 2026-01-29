@@ -271,4 +271,28 @@
   .animate-scaleIn {
     animation: scaleIn 0.2s ease-out;
   }
+
+  /* Typewriter cursor animation */
+  @keyframes blink {
+    0%, 50% {
+      opacity: 1;
+    }
+    51%, 100% {
+      opacity: 0;
+    }
+  }
+  
+  .typewriter-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background-color: currentColor;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+  
+  .dark .typewriter-cursor {
+    background-color: currentColor;
+  }
 }

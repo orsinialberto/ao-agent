@@ -16,6 +16,7 @@ interface ChatInterfaceProps {
 interface MessageItemProps {
   message: Message;
   copiedMessageId: string | null;
+  isTyping: boolean; // True when typewriter effect is active for this message
   onCopy: (message: Message) => void;
   onDownload: (message: Message) => void;
   t: (key: string) => string;
@@ -24,6 +25,7 @@ interface MessageItemProps {
 const MessageItem: React.FC<MessageItemProps> = React.memo(({ 
   message, 
   copiedMessageId, 
+  isTyping,
   onCopy, 
   onDownload, 
   t 
@@ -41,10 +43,18 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({
       >
         {message.role === 'assistant' ? (
           <>
-            <MarkdownRenderer 
-              content={message.content} 
-              className="text-sm"
-            />
+            {isTyping ? (
+              // During typing, show plain text with cursor (no markdown parsing for performance)
+              <div className="text-sm whitespace-pre-wrap">
+                {message.content}
+                <span className="typewriter-cursor" />
+              </div>
+            ) : (
+              <MarkdownRenderer 
+                content={message.content} 
+                className="text-sm"
+              />
+            )}
             {/* Copy, Download buttons and timestamp row */}
             <div className="flex items-center justify-between mt-1">
               <div className="flex items-center gap-1">
@@ -122,18 +132,20 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Only re-render if message content changes or copied state changes for this specific message
+  // Only re-render if message content changes, typing state changes, or copied state changes
   const messageChanged = 
     prevProps.message.id !== nextProps.message.id ||
     prevProps.message.content !== nextProps.message.content ||
     prevProps.message.createdAt !== nextProps.message.createdAt;
   
+  const typingStateChanged = prevProps.isTyping !== nextProps.isTyping;
+  
   const copiedStateChanged = 
     (prevProps.copiedMessageId === prevProps.message.id) !== 
     (nextProps.copiedMessageId === nextProps.message.id);
   
-  // Re-render if message changed or copied state for this message changed
-  return !messageChanged && !copiedStateChanged;
+  // Re-render if message changed, typing state changed, or copied state for this message changed
+  return !messageChanged && !typingStateChanged && !copiedStateChanged;
 });
 
 MessageItem.displayName = 'MessageItem';
@@ -153,6 +165,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
     messages, 
     isLoading,
     isStreaming,
+    isTyping,
     error, 
     createChat, 
     loadChat,
@@ -331,6 +344,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ currentChatId, onC
               key={message.id}
               message={message}
               copiedMessageId={copiedMessageId}
+              isTyping={isTyping && message.id.startsWith('streaming_')}
               onCopy={handleCopyMessage}
               onDownload={handleDownloadMessage}
               t={t}
