@@ -43,18 +43,13 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({
       >
         {message.role === 'assistant' ? (
           <>
-            {isTyping ? (
-              // During typing, show plain text with cursor (no markdown parsing for performance)
-              <div className="text-sm whitespace-pre-wrap">
-                {message.content}
-                <span className="typewriter-cursor" />
-              </div>
-            ) : (
+            <div className="relative">
               <MarkdownRenderer 
                 content={message.content} 
                 className="text-sm"
               />
-            )}
+              {isTyping && <span className="typewriter-cursor inline-block" />}
+            </div>
             {/* Copy, Download buttons and timestamp row */}
             <div className="flex items-center justify-between mt-1">
               <div className="flex items-center gap-1">
