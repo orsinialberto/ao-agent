@@ -1,31 +1,25 @@
 # System Architecture Overview
 
+> **Repository structure**: The project is split into two independent repositories:
+> - **[ao-agent](https://github.com/orsinialberto/ao-agent)** — Backend (this repo): Express.js API, PostgreSQL, Gemini, MCP
+> - **[ao-chat](https://github.com/orsinialberto/ao-chat)** — Frontend: React chat UI (reusable with any compatible backend)
+
 ## 🏗️ High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        AI Agent Chat System                     │
-├─────────────────────────────────────────────────────────────────┤
-│  Frontend (React)     │  Backend (Node.js)   │  Database (PG)   │
-│  ┌─────────────────┐  │  ┌─────────────────┐ │  ┌─────────────┐ │
-│  │ Chat Interface  │  │  │ Chat Controller │ │  │ PostgreSQL  │ │
-│  │ Sidebar         │  │  │ Gemini Service  │ │  │ + Prisma    │ │
-│  │ Markdown Render │  │  │ MCP Client      │ │  │             │ │
-│  │ Auth (Login/Reg)│  │  │ Auth Service    │ │  │   Users     │ │
-│  └─────────────────┘  │  │ Database Svc    │ │  └─────────────┘ │
-│                       │  └─────────────────┘ │                  │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-                    ┌──────────────────────────┐
-                    │    External Services     │
-                    │  ┌─────────────────────┐ │
-                    │  │   Google Gemini     │ │
-                    │  │   MCP Server        │ │
-                    │  │   OAuth Server      │ │
-                    │  │   Server API        │ │
-                    │  └─────────────────────┘ │
-                    └──────────────────────────┘
+┌──────────────────────┐         ┌──────────────────────┐
+│  ao-chat (Frontend)  │  HTTP   │  ao-agent (Backend)  │
+│  React + TypeScript  │◄───────►│  Express + Prisma    │
+│  Vite + Tailwind     │   API   │  Gemini + MCP        │
+└──────────────────────┘         └──────────┬───────────┘
+                                            │
+                                 ┌──────────▼───────────┐
+                                 │    External Services  │
+                                 │  Google Gemini        │
+                                 │  MCP Server           │
+                                 │  OAuth Server         │
+                                 │  PostgreSQL            │
+                                 └──────────────────────┘
 ```
 
 ## 🔐 Authentication Flow
@@ -34,8 +28,10 @@
 2. **Credential Verification** → Database (Users table) → Password Hash Check
 3. **OAuth Token** (if MCP + OAuth enabled) → OAuth Server → Access Token
 4. **JWT Generation** → Backend → JWT with user info + OAuth token (if applicable)
-5. **Token Storage** → Frontend localStorage → Auto-injection in API requests
+5. **Token Storage** → Frontend localStorage via `IAuthService` → Auto-injection in API requests
 6. **Protected Routes** → Middleware verification → JWT validation → OAuth token check (if MCP)
+
+> The frontend uses dependency injection (`ServiceProvider` + `useServices()` hook) for API and auth services. This allows the frontend to be reused with different backends by providing a custom `ApiClientConfig`.
 
 ## 🔄 Data Flow
 
@@ -74,8 +70,8 @@ Frontend                    Backend                      Gemini API
 
 For detailed architecture information, see:
 
-- **[Frontend Architecture](./frontend.md)** - Complete frontend architecture, components, authentication flow, and state management
 - **[Backend Architecture](./backend.md)** - Backend structure, services, authentication system, and API endpoints
+- **Frontend Architecture** — see [ao-chat docs](https://github.com/orsinialberto/ao-chat)
 
 ## 🗄️ Database Schema
 

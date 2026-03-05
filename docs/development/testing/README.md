@@ -2,7 +2,9 @@
 
 ## 🎯 Overview
 
-This section contains the complete documentation for the AI Agent Chat project tests. Tests are implemented for both backend and frontend to ensure quality and system reliability.
+Backend testing documentation for the AI Agent Chat project. Tests are implemented with Jest to ensure quality and reliability.
+
+> **Frontend testing** documentation lives in the [ao-chat](https://github.com/orsinialberto/ao-chat) repository.
 
 ## 📚 Available Documentation
 
@@ -11,29 +13,16 @@ This section contains the complete documentation for the AI Agent Chat project t
 - Unit tests for services
 - E2E tests for the API
 
-### Frontend Testing
-- **[Complete Guide](./frontend-testing.md)** - How to test the frontend with Vitest
-- React component tests
-- Custom hooks tests
-
 ## 🚀 Quick Start
 
 ### Run All Tests
 ```bash
-# Backend
 cd backend && npm test
-
-# Frontend  
-cd frontend && npm test
 ```
 
 ### Run Tests in Watch Mode
 ```bash
-# Backend
 cd backend && npm run test:watch
-
-# Frontend
-cd frontend && npm test -- --watch
 ```
 
 ## 📊 Test Statistics
@@ -50,15 +39,6 @@ cd frontend && npm test -- --watch
   - `services/mcpClient.test.ts` - MCP client tests
   - `services/mcpContextService.test.ts` - MCP context tests
 - **Test cases**: ~50+
-- **Coverage**: In development
-
-### Frontend (Vitest)
-- **Framework**: Vitest + React Testing Library
-- **Test files**: 6
-  - Component tests: 4 files
-  - Hook tests: 1 file
-  - MarkdownRenderer: 1 file
-- **Test cases**: ~15+
 - **Coverage**: In development
 
 ## 🎯 Best Practices
@@ -86,23 +66,9 @@ backend/
       gemini.test.ts   # Gemini service tests
       e2e.test.ts      # E2E tests
       setup.ts         # Jest setup
-
-frontend/
-  src/
-    components/
-      __tests__/   # Component tests
-    hooks/
-      __tests__/   # Hook tests
 ```
 
-### Coverage
-- **Goal**: >80% code coverage
-- **Priority**: Business logic and critical services
-- **Exclude**: Configuration files, types
-
-## 🔧 Configuration
-
-### Backend - jest.config.js
+### Configuration - jest.config.js
 ```javascript
 module.exports = {
   preset: 'ts-jest',
@@ -113,63 +79,7 @@ module.exports = {
 };
 ```
 
-### Frontend - vitest.config.ts
-```typescript
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    globals: true,
-  },
-});
-```
-
-## 📈 Testing Roadmap
-
-### Backend
-- [x] Add tests for all controllers
-- [x] Add tests for middleware
-- [x] Add tests for MCP services
-- [x] Improve Gemini tests with proper mocking
-
-### Frontend
-- [ ] Add tests for ChatInterface
-- [ ] Add tests for Header
-- [ ] Add tests for API services
-- [ ] React Query integration tests
-- [ ] E2E tests with Playwright
-
-### Infrastructure
-- [ ] Setup CI/CD with automated tests
-- [ ] Code coverage reporting
-- [ ] Test coverage badges
-- [ ] Pre-commit hooks with tests
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Error**: "Cannot find module"
-- Solution: `npm install`
-
-**Error**: "Connection refused" (E2E tests)
-- Solution: Start the server with `npm run dev`
-
-**Error**: "Database connection failed"
-- Solution: Start Docker with `docker-compose up -d`
-
-**Slow or hanging tests**
-- Solution: Increase timeout in jest.config.js
-
 ## 📚 Resources
 
 - [Jest Documentation](https://jestjs.io/docs/getting-started)
-- [Vitest Documentation](https://vitest.dev/guide/)
-- [React Testing Library](https://testing-library.com/react)
 - [Best Practices](./../best-practices.md)
-
----
-
-*Last updated: October 2024*
-

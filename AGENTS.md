@@ -4,15 +4,22 @@
 
 AI Agent Chat is a modern chat application with AI agents that supports multiple LLM providers and MCP integration.
 
+### Repositories
+
+The project is split into two independent repositories:
+
+- **[ao-agent](https://github.com/orsinialberto/ao-agent)** (this repo) — Backend: Express.js API, PostgreSQL, Gemini, MCP
+- **[ao-chat](https://github.com/orsinialberto/ao-chat)** — Frontend: React chat UI (reusable with any compatible backend)
+
 ### Technology Stack
 
-**Backend:**
+**Backend (ao-agent):**
 - Node.js + Express.js + TypeScript
 - PostgreSQL + Prisma ORM
 - Gemini API integration
 - Docker + Docker Compose
 
-**Frontend:**
+**Frontend (ao-chat):**
 - React 18 + TypeScript
 - Vite build tool
 - Tailwind CSS
@@ -26,7 +33,7 @@ AI Agent Chat is a modern chat application with AI agents that supports multiple
 ### Project Structure
 
 ```
-ai-agent-chat/
+ao-agent/                    # Backend repository
 ├── backend/                 # Express.js API server
 │   ├── src/
 │   │   ├── controllers/     # Route handlers
@@ -38,24 +45,24 @@ ai-agent-chat/
 │   ├── prisma/              # Database schema
 │   ├── package.json
 │   └── tsconfig.json
-├── frontend/                # React application
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── hooks/          # Custom hooks
-│   │   ├── services/       # API calls
-│   │   ├── types/          # TypeScript types
-│   │   ├── utils/          # Utilities
-│   │   └── styles/         # CSS styles
-│   ├── package.json
-│   └── vite.config.ts
-├── shared/                  # Shared types between frontend/backend
-│   └── types/
 ├── docs/                    # Documentation
 ├── docker-compose.yml       # PostgreSQL + pgAdmin
 ├── init.sql                 # Database initialization
 ├── README.md                # Setup and configuration guide
 ├── AGENTS.md                # Development process (this file)
 └── SPECS.md                 # Technical specifications
+
+ao-chat/                     # Frontend repository (separate)
+├── src/
+│   ├── components/          # React components
+│   ├── contexts/            # Service & Auth providers (DI)
+│   ├── hooks/               # Custom hooks
+│   ├── services/            # API & Auth services
+│   ├── types/               # TypeScript types
+│   ├── utils/               # Utilities
+│   └── styles/              # CSS styles
+├── package.json
+└── vite.config.ts
 ```
 
 ## Development Process
