@@ -1,5 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Message, MessageRole } from '../types/shared';
+import * as mcpClient from './mcpClientService';
+import { mcpToolsToGeminiDeclarations } from '../utils/mcpToGeminiTools';
+
+const AGENT_MAX_ITERATIONS = parseInt(process.env.AGENT_MAX_ITERATIONS || '10', 10);
 
 export interface GeminiResponse {
   content: string;
@@ -13,6 +17,7 @@ export interface GeminiResponse {
 export class GeminiService {
   private genAI: GoogleGenerativeAI | null = null;
   private model: any = null;
+  private currentModelName = 'gemini-2.5-flash';
   private retryAttempts: number;
   private retryDelay: number;
   private readonly systemInstruction: string;
@@ -21,6 +26,82 @@ export class GeminiService {
     this.retryAttempts = parseInt(process.env.GEMINI_RETRY_ATTEMPTS || '3');
     this.retryDelay = parseInt(process.env.GEMINI_RETRY_DELAY || '1000');
     this.systemInstruction = this.getSystemInstruction();
+  }
+
+  /**
+   * When MCP is connected, run agent loop with @google/genai and return final text; otherwise return null.
+   */
+  private async runAgentLoop(messages: Message[], modelName: string): Promise<GeminiResponse | null> {
+    if (!mcpClient.isConnected()) return null;
+    const mcpTools = await mcpClient.listTools();
+    if (mcpTools.length === 0) return null;
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+
+    const { GoogleGenAI, createPartFromText, createPartFromFunctionResponse } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey });
+
+    const declarations = mcpToolsToGeminiDeclarations(mcpTools);
+    const tools = [{ functionDeclarations: declarations }];
+
+    const history = this.convertMessagesToHistory(messages);
+    const contents: Array<{ role: string; parts: unknown[] }> = [
+      { role: 'user', parts: [createPartFromText(this.systemInstruction)] },
+      { role: 'model', parts: [createPartFromText('Understood. I will use the chart and map syntax when needed, and I can use the available tools when appropriate.')] },
+      ...history.map((h) => ({ role: h.role, parts: h.parts.map((p) => createPartFromText(p)) })),
+    ];
+
+    let iteration = 0;
+    while (iteration < AGENT_MAX_ITERATIONS) {
+      iteration++;
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: contents as never,
+        config: {
+          tools,
+          temperature: 0.7,
+          topP: 0.8,
+          topK: 40,
+          maxOutputTokens: 2048,
+        },
+      });
+
+      const functionCalls = response.functionCalls;
+      if (functionCalls && functionCalls.length > 0) {
+        const responseText = response.text;
+        if (responseText) {
+          contents.push({ role: 'model', parts: [createPartFromText(responseText)] });
+        }
+        for (const fc of functionCalls) {
+          const name = fc.name ?? '';
+          const args = (fc.args ?? {}) as Record<string, unknown>;
+          const result = await mcpClient.callTool(name, args);
+          let responseObj: Record<string, unknown>;
+          try {
+            responseObj = typeof result === 'string' ? JSON.parse(result) : { result };
+          } catch {
+            responseObj = { result };
+          }
+          contents.push({
+            role: 'user',
+            parts: [createPartFromFunctionResponse(fc.id ?? `call_${iteration}_${name}`, name, responseObj)],
+          });
+        }
+        continue;
+      }
+
+      const text = response.text ?? '';
+      return { content: text, usage: { promptTokens: 0, responseTokens: 0, totalTokens: 0 } };
+    }
+
+    const lastResponse = await ai.models.generateContent({
+      model: modelName,
+      contents: contents as never,
+      config: { temperature: 0.7, maxOutputTokens: 2048 },
+    });
+    const finalText = lastResponse.text ?? '';
+    return { content: finalText, usage: { promptTokens: 0, responseTokens: 0, totalTokens: 0 } };
   }
 
   /**
@@ -233,8 +314,9 @@ Remember: Both charts and maps render directly and interactively in this interfa
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
+    this.currentModelName = 'gemini-2.5-flash';
     this.model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
+      model: this.currentModelName,
       generationConfig: {
         temperature: 0.7,
         topP: 0.8,
@@ -258,6 +340,13 @@ Remember: Both charts and maps render directly and interactively in this interfa
   async *sendMessageStream(messages: Message[]): AsyncGenerator<string, void, unknown> {
     // Initialize if not already done
     this.initialize();
+
+    // When MCP is connected, run agent loop then yield final text (no per-token streaming for tool use)
+    const agentResult = await this.runAgentLoop(messages, this.currentModelName);
+    if (agentResult) {
+      if (agentResult.content) yield agentResult.content;
+      return;
+    }
     
     // Convert messages to Gemini format
     const history = this.convertMessagesToHistory(messages);
@@ -305,6 +394,10 @@ Remember: Both charts and maps render directly and interactively in this interfa
     try {
       // Initialize if not already done
       this.initialize();
+
+      // When MCP is connected, use agent loop (reason → act → observe)
+      const agentResult = await this.runAgentLoop(messages, this.currentModelName);
+      if (agentResult) return agentResult;
       
       // Convert messages to Gemini format
       const history = this.convertMessagesToHistory(messages);
@@ -472,6 +565,7 @@ Remember: Both charts and maps render directly and interactively in this interfa
       throw new Error(`Model ${modelName} is not available. Available models: ${availableModels.join(', ')}`);
     }
     
+    this.currentModelName = modelName;
     this.model = this.genAI!.getGenerativeModel({ 
       model: modelName,
       generationConfig: {

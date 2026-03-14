@@ -1,12 +1,16 @@
 # AO Agent
 
-Express.js backend that exposes a minimal API for anonymous chat with AI: create chats and stream assistant replies via SSE. **No database, no authentication** — all chat data is in-memory. Use it from any HTTP client (web app, CLI, Postman, etc.).
+AO Agent is an backend that powers conversational AI. You create chats, send messages, and receive assistant replies — streamed via SSE — backed by the Gemini API.
+
+Data expires after an hour. When **MCP is enabled**, the backend connects to a Model Context Protocol server so the model can call tools in an agent loop: it reasons, acts via tools, observes results, and loops until it has an answer or hits the iteration limit.
+
+You can consume the API from any HTTP client: a React app, a CLI, Postman, or anything that speaks REST.
 
 ## Tech Stack
 
 - Node.js + Express.js + TypeScript
 - Gemini API
-- No database, no MCP
+- Optional MCP (Model Context Protocol) for an agent loop with tools
 
 ---
 
@@ -41,6 +45,11 @@ Set `GEMINI_API_KEY` in `.env` (required).
 | `FRONTEND_URL` | Allowed CORS origin (e.g. dev frontend) | `http://localhost:5173` |
 | `GEMINI_RETRY_ATTEMPTS` | Retry attempts for Gemini | `3` |
 | `GEMINI_RETRY_DELAY` | Delay between retries (ms) | `1000` |
+| `MCP_ENABLED` | Enable MCP and agent loop with tools | `false` |
+| `MCP_SERVER_URL` | MCP server URL (HTTP transport) | — |
+| `MCP_COMMAND` | Command for stdio transport (e.g. `npx`) | — |
+| `MCP_ARGS` | Args for stdio (comma-separated, e.g. `-y,@modelcontextprotocol/server-filesystem`) | — |
+| `AGENT_MAX_ITERATIONS` | Max tool-call rounds per turn (context control) | `10` |
 
 ### 3. Development
 
@@ -66,8 +75,7 @@ npm run test:watch # watch mode
 
 ---
 
-## API
+## Documentation
 
-- **POST /api/anonymous/chats** — Create anonymous chat (body: `{ title?, initialMessage?, model? }`).
-- **POST /api/anonymous/chats/:chatId/messages/stream** — Send message and stream assistant reply via SSE (body: `{ content, role?, model? }`).
-
+- [Agent Loop](docs/agent-loop.md) — How the agent loop works
+- [MCP Server Configuration](docs/mcp-server-configuration.md) — How to configure and connect to an MCP server

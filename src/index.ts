@@ -125,6 +125,7 @@ app.use((req, res, next) => {
 import { chatController } from './controllers/chatController';
 import { requestLogger } from './middleware/logger';
 import { errorHandler } from './middleware/errorHandler';
+import * as mcpClient from './services/mcpClientService';
 
 // Request logging middleware (only in development)
 if (process.env.NODE_ENV === 'development') {
@@ -157,11 +158,29 @@ app.use('*', (req, res) => {
   });
 });
 
+// MCP: connect on startup when enabled (non-blocking)
+if (process.env.MCP_ENABLED === 'true' || process.env.MCP_ENABLED === '1') {
+  mcpClient.connect().catch((err) => {
+    console.warn('MCP: failed to connect on startup', err);
+  });
+}
+
+// Graceful shutdown: disconnect MCP
+const shutdown = async () => {
+  await mcpClient.disconnect();
+  process.exit(0);
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 API: http://localhost:${PORT}/api/anonymous/chats`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  if (process.env.MCP_ENABLED === 'true' || process.env.MCP_ENABLED === '1') {
+    console.log('🔌 MCP: enabled (agent loop will use tools when connected)');
+  }
 });
 
 export default app;
