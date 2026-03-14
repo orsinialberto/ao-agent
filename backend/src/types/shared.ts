@@ -1,4 +1,4 @@
-// Shared types for anonymous chat API (used by ao-chat)
+// Shared types for anonymous chat API
 
 export interface Message {
   id: string;

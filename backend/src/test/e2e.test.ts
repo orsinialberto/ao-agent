@@ -1,4 +1,4 @@
-// E2E tests for anonymous chat API (used by ao-chat)
+// E2E tests for anonymous chat API
 
 const API_BASE_URL = 'http://localhost:3001/api';
 

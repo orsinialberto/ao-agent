@@ -131,7 +131,7 @@ if (process.env.NODE_ENV === 'development') {
   app.use(requestLogger);
 }
 
-// Anonymous chat endpoints (in-memory, no database) - used by ao-chat
+// Anonymous chat endpoints (in-memory, no database)
 app.post('/api/anonymous/chats', anonymousLimiter, (req, res, next) => {
   chatController.createAnonymousChat(req, res).catch(next);
 });

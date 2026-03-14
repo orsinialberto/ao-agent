@@ -1,6 +1,6 @@
 # AO Agent
 
-Express.js backend for the AI Agent Chat application. Used by [ao-chat](https://github.com/orsinialberto/ao-chat). Exposes a minimal API: create anonymous chat and stream messages (SSE). **No database, no authentication** — all chat data is in-memory.
+Express.js backend that exposes a minimal API for anonymous chat with AI: create chats and stream assistant replies via SSE. **No database, no authentication** — all chat data is in-memory. Use it from any HTTP client (web app, CLI, Postman, etc.).
 
 ## Tech Stack
 
@@ -67,13 +67,8 @@ npm run test:watch # watch mode
 
 ---
 
-## API (used by ao-chat)
+## API
 
 - **POST /api/anonymous/chats** — Create anonymous chat (body: `{ title?, initialMessage?, model? }`).
 - **POST /api/anonymous/chats/:chatId/messages/stream** — Send message and stream assistant reply via SSE (body: `{ content, role?, model? }`).
 
----
-
-## Documentation
-
-- **Frontend**: [ao-chat](https://github.com/orsinialberto/ao-chat) — React chat UI that consumes this API
