@@ -27,10 +27,13 @@ describe('Error Handler Middleware', () => {
       errorHandler(error as AppError, mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        error: 'Test error'
-      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: 'Internal Server Error',
+          message: expect.any(String)
+        })
+      );
     });
 
     it('should handle error with custom status code', () => {
@@ -41,7 +44,8 @@ describe('Error Handler Middleware', () => {
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Not found'
+        error: 'Not found',
+        message: 'Not found'
       });
     });
 
@@ -53,11 +57,14 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error as AppError, mockReq as Request, mockRes as Response, mockNext);
 
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        error: 'Test error',
-        stack: expect.any(String)
-      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: 'Internal Server Error',
+          message: 'Test error',
+          stack: expect.any(String)
+        })
+      );
 
       process.env.NODE_ENV = originalEnv;
     });
@@ -72,7 +79,8 @@ describe('Error Handler Middleware', () => {
 
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Test error'
+        error: 'Internal Server Error',
+        message: 'Something went wrong'
       });
 
       process.env.NODE_ENV = originalEnv;
@@ -85,10 +93,13 @@ describe('Error Handler Middleware', () => {
       errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        error: 'Internal Server Error'
-      });
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: 'Internal Server Error',
+          message: expect.any(String)
+        })
+      );
     });
   });
 

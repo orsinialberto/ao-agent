@@ -121,20 +121,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// Import controller and middleware
+import { chatController } from './controllers/chatController';
+import { requestLogger } from './middleware/logger';
+import { errorHandler } from './middleware/errorHandler';
+
 // Request logging middleware (only in development)
 if (process.env.NODE_ENV === 'development') {
-  app.use((req, res, next) => {
-    const startTime = Date.now();
-    res.on('finish', () => {
-      const duration = Date.now() - startTime;
-      console.log(`${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`);
-    });
-    next();
-  });
+  app.use(requestLogger);
 }
-
-// Import controller
-import { chatController } from './controllers/chatController';
 
 // Anonymous chat endpoints (in-memory, no database) - used by ao-chat
 app.post('/api/anonymous/chats', anonymousLimiter, (req, res, next) => {
@@ -151,14 +146,7 @@ app.use((req, res, next) => {
 });
 
 // Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    success: false, 
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
+app.use(errorHandler);
 
 // 404 handler
 app.use('*', (req, res) => {

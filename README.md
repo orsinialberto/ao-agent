@@ -70,11 +70,10 @@ npm run test:watch # watch mode
 ## API (used by ao-chat)
 
 - **POST /api/anonymous/chats** — Create anonymous chat (body: `{ title?, initialMessage?, model? }`).
-- **POST /api/anonymous/chats/:chatId/messages/stream** — Send message and stream assistant reply via SSE (body: `{ chatId, content, role?, model? }`).
+- **POST /api/anonymous/chats/:chatId/messages/stream** — Send message and stream assistant reply via SSE (body: `{ content, role?, model? }`).
 
 ---
 
 ## Documentation
 
-- **MCP**: [MCP server configuration](./docs/mcp-configuration.md) — how to configure the backend to communicate with an MCP server
 - **Frontend**: [ao-chat](https://github.com/orsinialberto/ao-chat) — React chat UI that consumes this API

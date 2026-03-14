@@ -5,7 +5,6 @@ export interface Message {
   chatId: string;
   role: MessageRole;
   content: string;
-  metadata?: Record<string, unknown>;
   createdAt: Date;
 }
 
@@ -32,7 +31,6 @@ export interface CreateChatRequest {
 }
 
 export interface CreateMessageRequest {
-  chatId: string;
   content: string;
   role?: MessageRole;
   model?: string;

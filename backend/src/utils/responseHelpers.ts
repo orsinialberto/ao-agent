@@ -42,26 +42,6 @@ export class ResponseHelper {
   }
 
   /**
-   * Send unauthorized response (401)
-   */
-  static unauthorized(
-    res: Response<ApiResponse>,
-    message: string = 'Authentication required'
-  ): Response<ApiResponse> {
-    return this.error(res, 'UNAUTHORIZED', message, 401);
-  }
-
-  /**
-   * Send not found response (404)
-   */
-  static notFound(
-    res: Response<ApiResponse>,
-    message: string = 'Resource not found'
-  ): Response<ApiResponse> {
-    return this.error(res, 'NOT_FOUND', message, 404);
-  }
-
-  /**
    * Send bad request response (400)
    */
   static badRequest(
@@ -74,7 +54,7 @@ export class ResponseHelper {
 
   /**
    * Send service unavailable response (503)
-   * Used for external service failures (e.g., LLM, MCP)
+   * Used for external service failures (e.g. LLM)
    */
   static serviceUnavailable(
     res: Response<ApiResponse>,
@@ -94,17 +74,6 @@ export class ResponseHelper {
         ...(chatId && { chatId })
       }
     );
-  }
-
-  /**
-   * Send validation error response (400)
-   */
-  static validationError(
-    res: Response<ApiResponse>,
-    message: string,
-    errorType: string = 'VALIDATION_ERROR'
-  ): Response<ApiResponse> {
-    return this.badRequest(res, message, errorType);
   }
 
   /**
