@@ -8,10 +8,9 @@ export class DatabaseService {
   /**
    * Create a new chat
    */
-  async createChat(userId: string, title?: string): Promise<SharedChat> {
+  async createChat(title?: string): Promise<SharedChat> {
     const chat = await prisma.chat.create({
       data: {
-        userId,
         title: title || 'New Chat',
       },
       include: {
@@ -27,14 +26,11 @@ export class DatabaseService {
   }
 
   /**
-   * Get a chat by ID and userId (for authorization)
+   * Get a chat by ID
    * @param limitMessages - Limit number of messages to load (loads most recent messages). Default: 50. Set to undefined to load all.
    */
-  async getChat(chatId: string, userId?: string, limitMessages?: number): Promise<SharedChat | null> {
-    const where: any = { id: chatId };
-    if (userId) {
-      where.userId = userId;
-    }
+  async getChat(chatId: string, limitMessages?: number): Promise<SharedChat | null> {
+    const where = { id: chatId };
 
     // If limit is specified, we need to get messages separately to get the most recent ones
     if (limitMessages !== undefined && limitMessages > 0) {
@@ -82,20 +78,14 @@ export class DatabaseService {
   }
 
   /**
-   * Get all chats for a user (with only the last message for preview)
+   * Get all chats (with only the last message for preview)
    * Optimized: uses a single query with include to get only the last message per chat
    */
-  async getChats(userId?: string): Promise<SharedChat[]> {
-    const where: any = {};
-    if (userId) {
-      where.userId = userId;
-    }
-
+  async getChats(): Promise<SharedChat[]> {
     // Get chats with only their last message for preview
     // This is efficient because Prisma optimizes the query with proper indexes
     // We only fetch the most recent message (take: 1) ordered by createdAt desc
     const chats = await prisma.chat.findMany({
-      where,
       include: {
         messages: {
           orderBy: { createdAt: 'desc' },

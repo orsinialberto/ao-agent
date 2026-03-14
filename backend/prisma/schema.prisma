@@ -10,27 +10,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id          String    @id @default(cuid())
-  username    String    @unique
-  email       String    @unique
-  password    String    // bcrypt hash
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  
-  chats Chat[]
-  
-  @@map("users")
-}
-
 model Chat {
   id        String   @id @default(cuid())
-  userId    String   @map("user_id")
   title     String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
   
   @@map("chats")

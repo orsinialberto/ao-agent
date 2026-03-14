@@ -98,8 +98,7 @@ const anonymousLimiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS',
 });
 
-// Rate limiting for authenticated routes
-// Anonymous routes are handled separately above with anonymousLimiter
+// General rate limiting for API routes
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 1000, // limit each IP to 1000 requests per windowMs
@@ -143,16 +142,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Import controllers and middleware
+// Import controllers
 import { chatController } from './controllers/chatController';
 import { healthController } from './controllers/healthController';
-import { authenticate } from './middleware/authMiddleware';
-import authRoutes from './routes/auth';
 
-// Authentication routes (public)
-app.use('/api/auth', authRoutes);
-
-// Anonymous chat endpoints (public - no authentication required)
+// Anonymous chat endpoints (in-memory, no database)
 // Defined before app.use(limiter) so anonymousLimiter applies first
 // More restrictive rate limiting applied
 app.post('/api/anonymous/chats', anonymousLimiter, (req, res, next) => {
@@ -178,31 +172,29 @@ app.use((req, res, next) => {
   return limiter(req, res, next);
 });
 
-// Chat API routes (protected - require authentication)
-app.post('/api/chats', authenticate, (req, res, next) => {
+// Chat API routes (persisted in database)
+app.post('/api/chats', (req, res, next) => {
   chatController.createChat(req, res).catch(next);
 });
-app.get('/api/chats', authenticate, (req, res, next) => {
+app.get('/api/chats', (req, res, next) => {
   chatController.getChats(req, res).catch(next);
 });
-app.get('/api/chats/:chatId', authenticate, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
+app.get('/api/chats/:chatId', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
   chatController.getChat(req, res).catch(next);
 });
-app.put('/api/chats/:chatId', authenticate, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
+app.put('/api/chats/:chatId', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
   chatController.updateChat(req, res).catch(next);
 });
-app.delete('/api/chats/:chatId', authenticate, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
+app.delete('/api/chats/:chatId', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
   chatController.deleteChat(req, res).catch(next);
 });
-app.post('/api/chats/:chatId/messages', authenticate, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
+app.post('/api/chats/:chatId/messages', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
   chatController.sendMessage(req, res).catch(next);
 });
-
-// Streaming endpoint for authenticated chats (SSE)
-app.post('/api/chats/:chatId/messages/stream', authenticate, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
+app.post('/api/chats/:chatId/messages/stream', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
   chatController.sendMessageStream(req, res).catch(next);
 });
-app.post('/api/chats/migrate', authenticate, (req: Request, res: Response, next: NextFunction) => {
+app.post('/api/chats/migrate', (req: Request, res: Response, next: NextFunction) => {
   chatController.migrateAnonymousChats(req, res).catch(next);
 });
 

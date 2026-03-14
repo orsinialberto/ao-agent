@@ -17,35 +17,21 @@
                                  │    External Services  │
                                  │  Google Gemini        │
                                  │  MCP Server           │
-                                 │  OAuth Server         │
-                                 │  PostgreSQL            │
+                                 │  PostgreSQL           │
                                  └──────────────────────┘
 ```
-
-## 🔐 Authentication Flow
-
-1. **User Registration/Login** → Frontend → Backend Auth Service
-2. **Credential Verification** → Database (Users table) → Password Hash Check
-3. **OAuth Token** (if MCP + OAuth enabled) → OAuth Server → Access Token
-4. **JWT Generation** → Backend → JWT with user info + OAuth token (if applicable)
-5. **Token Storage** → Frontend localStorage via `IAuthService` → Auto-injection in API requests
-6. **Protected Routes** → Middleware verification → JWT validation → OAuth token check (if MCP)
-
-> The frontend uses dependency injection (`ServiceProvider` + `useServices()` hook) for API and auth services. This allows the frontend to be reused with different backends by providing a custom `ApiClientConfig`.
 
 ## 🔄 Data Flow
 
 ### Standard REST Flow
-1. **User Input** → Frontend → API Call (with JWT) → Backend
-2. **Authentication** → JWT Middleware → User verification → Continue
-3. **Message Processing** → Database (Save) → AI Service → Response
-4. **AI Integration** → Gemini API → AI Response → Database (Save) → Frontend
-5. **MCP Integration** → MCP Context → Tool Selection → MCP Server (with OAuth if configured) → External API → Response
+1. **User Input** → Frontend → API Call → Backend
+2. **Message Processing** → Database (Save) → AI Service → Response
+3. **AI Integration** → Gemini API → AI Response → Database (Save) → Frontend
+4. **MCP Integration** → MCP Context → Tool Selection → MCP Server → External API → Response
 
 ### Streaming Flow (SSE) - For AI Responses
 1. **User Input** → Frontend → POST to `/messages/stream` endpoint
-2. **Authentication** → JWT Middleware → User verification
-3. **User Message** → Save to Database
+2. **User Message** → Save to Database
 4. **SSE Connection** → Set headers (`text/event-stream`)
 5. **AI Streaming** → Gemini API Stream → Yield chunks → Send SSE events
 6. **Frontend Updates** → Receive chunks → Update UI incrementally → Smooth scroll
@@ -70,13 +56,12 @@ Frontend                    Backend                      Gemini API
 
 For detailed architecture information, see:
 
-- **[Backend Architecture](./backend.md)** - Backend structure, services, authentication system, and API endpoints
+- **[Backend Architecture](./backend.md)** - Backend structure, services, and API endpoints
 - **Frontend Architecture** — see [ao-chat docs](https://github.com/orsinialberto/ao-chat)
 
 ## 🗄️ Database Schema
 
-- **Users** - User accounts with authentication credentials
-- **Chats** - Chat sessions linked to users
+- **Chats** - Chat sessions
 - **Messages** - Chat messages with roles (user, assistant, system)
 - **LLMProvider** - LLM provider configurations (future)
 

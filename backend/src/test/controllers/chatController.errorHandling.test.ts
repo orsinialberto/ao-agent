@@ -57,7 +57,7 @@ describe('ChatController - Error Handling', () => {
       expect(mockRes.status).toHaveBeenCalledWith(503);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'AI_SERVICE_UNAVAILABLE',
+        error: 'SERVICE_UNAVAILABLE',
         errorType: 'LLM_UNAVAILABLE',
         message: 'The AI service is temporarily unavailable. The chat was created but the AI could not respond.',
         chatId: 'chat-1'
@@ -99,7 +99,7 @@ describe('ChatController - Error Handling', () => {
       expect(mockRes.status).toHaveBeenCalledWith(503);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'AI_SERVICE_UNAVAILABLE',
+        error: 'SERVICE_UNAVAILABLE',
         errorType: 'LLM_UNAVAILABLE',
         message: 'The AI service is temporarily unavailable. Please try again in a few moments.',
         retryAfter: 60

@@ -1,6 +1,6 @@
 # AO Agent — Backend
 
-Express.js backend for the AI Agent Chat application. Provides REST APIs for chat, authentication, and AI model integration (Gemini) with MCP protocol support.
+Express.js backend for the AI Agent Chat application. Provides REST APIs for chat and AI model integration (Gemini) with MCP protocol support.
 
 ## Quick Start
 
@@ -30,7 +30,7 @@ Express.js backend for the AI Agent Chat application. Provides REST APIs for cha
 
    # Setup database
    npx prisma generate
-   npx prisma db push
+   npx prisma db push   # or npx prisma migrate dev (creates migration that drops users table)
    ```
 
 3. **Run the server**
@@ -55,10 +55,6 @@ NODE_ENV=development
 
 # Gemini API
 GEMINI_API_KEY="your_gemini_api_key"
-
-# JWT Configuration (REQUIRED for authentication)
-JWT_SECRET="your_jwt_secret_change_this_in_production"
-JWT_EXPIRES_IN="1h"
 
 # CORS — set to your frontend origin
 FRONTEND_URL="http://localhost:5173"
@@ -86,17 +82,6 @@ MCP (Model Context Protocol) server is configured via YAML file:
 
 3. **MCP is automatically enabled** if `mcp-config.yml` exists, otherwise it's disabled.
 
-#### OAuth Authentication for MCP (Optional)
-
-If your MCP server requires OAuth authentication:
-
-1. **Create OAuth config:**
-   ```bash
-   cd backend
-   cp config/oauth-config.yml.example config/oauth-config.yml
-   ```
-2. Configure your OAuth server URL in `oauth-config.yml`.
-
 ### Docker Commands
 
 ```bash
@@ -120,7 +105,6 @@ docker-compose up -d
 - Node.js + Express.js + TypeScript
 - PostgreSQL + Prisma ORM
 - Gemini API integration
-- JWT authentication
 - Docker + Docker Compose
 
 ## Documentation

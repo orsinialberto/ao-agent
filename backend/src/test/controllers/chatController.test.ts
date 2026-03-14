@@ -116,7 +116,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Failed to create chat'
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to create chat'
       });
     });
   });
@@ -184,7 +185,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Message content is required'
+        error: 'BAD_REQUEST',
+        message: 'Message content is required'
       });
     });
 
@@ -202,7 +204,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Chat not found'
+        error: 'NOT_FOUND',
+        message: 'Chat not found'
       });
     });
 
@@ -222,7 +225,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Failed to send message'
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to send message'
       });
     });
   });
@@ -271,7 +275,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Failed to get chats'
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to get chats'
       });
     });
   });
@@ -288,13 +293,14 @@ describe('ChatController', () => {
       (databaseService.getChat as jest.Mock).mockResolvedValue(mockChat);
 
       mockReq.params = { chatId: 'chat-1' };
+      mockReq.query = {};
 
       await controller.getChat(
         mockReq as any,
         mockRes as Response
       );
 
-      expect(databaseService.getChat).toHaveBeenCalledWith('chat-1');
+      expect(databaseService.getChat).toHaveBeenCalledWith('chat-1', 50);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
         data: mockChat
@@ -305,6 +311,7 @@ describe('ChatController', () => {
       (databaseService.getChat as jest.Mock).mockResolvedValue(null);
 
       mockReq.params = { chatId: 'invalid-chat' };
+      mockReq.query = {};
 
       await controller.getChat(
         mockReq as any,
@@ -314,7 +321,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Chat not found'
+        error: 'NOT_FOUND',
+        message: 'Chat not found'
       });
     });
 
@@ -324,6 +332,7 @@ describe('ChatController', () => {
       );
 
       mockReq.params = { chatId: 'chat-1' };
+      mockReq.query = {};
 
       await controller.getChat(
         mockReq as any,
@@ -333,7 +342,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Failed to get chat'
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to get chat'
       });
     });
   });
@@ -379,7 +389,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Title is required'
+        error: 'BAD_REQUEST',
+        message: 'Title is required'
       });
     });
 
@@ -397,7 +408,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Chat not found'
+        error: 'NOT_FOUND',
+        message: 'Chat not found'
       });
     });
   });
@@ -442,7 +454,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Chat not found'
+        error: 'NOT_FOUND',
+        message: 'Chat not found'
       });
     });
 
@@ -461,7 +474,8 @@ describe('ChatController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Failed to delete chat'
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to delete chat'
       });
     });
   });

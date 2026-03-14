@@ -23,7 +23,6 @@ Welcome to the backend documentation for the AI Agent Chat project.
 - **[Best Practices](./development/best-practices.md)** - Development guidelines
 
 ### ✨ [Features](./features/)
-- **[Authentication](./features/authentication.md)** - JWT authentication system
 - **[Error Handling](./features/error-handling.md)** - Backend error management
 - **[Error Handling v2](./features/error-handling-v2.md)** - Multilingual error handling
 

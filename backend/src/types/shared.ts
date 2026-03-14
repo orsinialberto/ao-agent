@@ -67,37 +67,6 @@ export interface ChatResponse {
   messages: Message[];
 }
 
-// Authentication types
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface RegisterRequest {
-  username: string;
-  email: string;
-  password: string;
-}
-
-export interface LoginRequest {
-  usernameOrEmail: string;
-  password: string;
-}
-
-export interface ChangePasswordRequest {
-  currentPassword: string;
-  newPassword: string;
-}
-
-export interface AuthResponse {
-  token: string;
-  user: User;
-  expiresAt: string;
-}
-
 // Anonymous chat types
 export interface AnonymousChat {
   id: string;
@@ -113,19 +82,4 @@ export interface MigrateChatsRequest {
 
 export interface MigrateChatsResponse {
   migratedChats: Chat[];
-}
-
-// Extend Express Request type for authentication
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        userId: string;
-        username: string;
-        email: string;
-        oauthToken?: string; // opzionale, presente solo se MCP e OAuth sono abilitati
-        oauthTokenExpiry?: number; // Unix timestamp in seconds, presente solo se OAuth è abilitato
-      };
-    }
-  }
 }

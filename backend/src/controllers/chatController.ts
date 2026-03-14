@@ -73,9 +73,7 @@ export class ChatController {
   }
 
   /**
-   * Create MCP client with OAuth token from request
-   * This is called per-request to include the user's OAuth token
-   * Only includes token if OAuth is enabled
+   * Create MCP client with optional OAuth token for MCP server authentication
    */
   private createMCPClient(oauthToken?: string): MCPClient | null {
     if (!this.mcpEnabled) {
@@ -87,22 +85,12 @@ export class ChatController {
   }
 
   /**
-   * Create MCP context service with OAuth token
-   * Only includes token if OAuth is enabled
-   * Returns null if OAuth is enabled but no token is provided
+   * Create MCP context service with optional OAuth token
    */
   private createMCPContextService(oauthToken?: string): MCPContextService | null {
     if (!this.mcpEnabled) {
       return null;
     }
-    
-    // Se OAuth è abilitato, il token è obbligatorio per usare MCP
-    if (isOAuthEnabled() && !oauthToken) {
-      console.log('MCP disabled: OAuth is enabled but no token provided');
-      return null;
-    }
-    
-    // Only pass token if OAuth is configured
     const tokenToUse = isOAuthEnabled() ? oauthToken : undefined;
     const mcpClient = this.createMCPClient(tokenToUse);
     if (!mcpClient) {
@@ -162,9 +150,7 @@ export class ChatController {
     try {
       const { title, initialMessage, model } = req.body;
       
-      // Create chat in database with userId
-      // req.user is guaranteed by authenticate middleware
-      const chat = await databaseService.createChat(req.user!.userId, title);
+      const chat = await databaseService.createChat(title);
 
       // If there's an initial message, process it
       if (initialMessage) {
@@ -240,13 +226,11 @@ export class ChatController {
       const { chatId } = req.params;
       const { content, role = MessageRole.USER, model } = req.body;
 
-      // req.user is guaranteed by authenticate middleware
       if (!content || !content.trim()) {
         return ResponseHelper.badRequest(res, 'Message content is required');
       }
 
-      // Check if chat exists and belongs to user
-      const chat = await databaseService.getChat(chatId, req.user!.userId);
+      const chat = await databaseService.getChat(chatId);
       if (!chat) {
         return ResponseHelper.notFound(res, 'Chat not found');
       }
@@ -267,7 +251,7 @@ export class ChatController {
         const aiResponse = await this.getAIMessageResponse(
           content,
           chatHistory,
-          req.user!.oauthToken
+          undefined
         );
         
         // Add AI response to database
@@ -298,8 +282,7 @@ export class ChatController {
    */
   async getChats(req: Request, res: Response<ApiResponse<Chat[]>>) {
     try {
-      // req.user is guaranteed by authenticate middleware
-      const chats = await databaseService.getChats(req.user!.userId);
+      const chats = await databaseService.getChats();
       return ResponseHelper.success(res, chats);
     } catch (error) {
       console.error('Error getting chats:', error);
@@ -314,7 +297,6 @@ export class ChatController {
    */
   async getChat(req: Request<{ chatId: string }>, res: Response<ApiResponse<Chat>>) {
     try {
-      // req.user is guaranteed by authenticate middleware
       const { chatId } = req.params;
       
       // Parse limit from query parameter (default: 50 messages)
@@ -330,7 +312,7 @@ export class ChatController {
         }
       }
 
-      const chat = await databaseService.getChat(chatId, req.user!.userId, limitMessages);
+      const chat = await databaseService.getChat(chatId, limitMessages);
 
       if (!chat) {
         return ResponseHelper.notFound(res, 'Chat not found');
@@ -523,15 +505,13 @@ export class ChatController {
     res.flushHeaders();
 
     try {
-      // req.user is guaranteed by authenticate middleware
       if (!content || !content.trim()) {
         res.write(`data: ${JSON.stringify({ type: 'error', error: 'Message content is required' })}\n\n`);
         res.end();
         return;
       }
 
-      // Check if chat exists and belongs to user
-      const chat = await databaseService.getChat(chatId, req.user!.userId);
+      const chat = await databaseService.getChat(chatId);
       if (!chat) {
         res.write(`data: ${JSON.stringify({ type: 'error', error: 'Chat not found' })}\n\n`);
         res.end();
@@ -684,14 +664,12 @@ export class ChatController {
   }
 
   /**
-   * Migrate anonymous chats to database (protected endpoint, requires authentication)
-   * Creates chats in database for the authenticated user
+   * Migrate anonymous chats to database
+   * Creates chats in database and copies messages
    */
   async migrateAnonymousChats(req: Request<{}, ApiResponse<MigrateChatsResponse>, MigrateChatsRequest>, res: Response<ApiResponse<MigrateChatsResponse>>) {
     try {
-      // req.user is guaranteed by authenticate middleware
       const { chats } = req.body;
-      const userId = req.user!.userId;
       
       if (!chats || !Array.isArray(chats) || chats.length === 0) {
         return ResponseHelper.badRequest(res, 'Chats array is required and must not be empty');
@@ -699,13 +677,10 @@ export class ChatController {
       
       const migratedChats: Chat[] = [];
       
-      // Migrate each anonymous chat to database
       for (const anonymousChat of chats) {
         try {
-          // Create chat in database
-          const chat = await databaseService.createChat(userId, anonymousChat.title);
+          const chat = await databaseService.createChat(anonymousChat.title);
           
-          // Add messages to database
           for (const message of anonymousChat.messages) {
             await databaseService.addMessage(
               chat.id,
@@ -715,8 +690,7 @@ export class ChatController {
             );
           }
           
-          // Get updated chat with messages
-          const updatedChat = await databaseService.getChat(chat.id, userId);
+          const updatedChat = await databaseService.getChat(chat.id);
           if (updatedChat) {
             migratedChats.push(updatedChat);
           }
@@ -769,7 +743,6 @@ export class ChatController {
    */
   async updateChat(req: Request<{ chatId: string }, ApiResponse<Chat>, { title: string }>, res: Response<ApiResponse<Chat>>) {
     try {
-      // req.user is guaranteed by authenticate middleware
       const { chatId } = req.params;
       const { title } = req.body;
 
@@ -777,17 +750,14 @@ export class ChatController {
         return ResponseHelper.badRequest(res, 'Title is required');
       }
 
-      // Check if chat exists and belongs to user
-      const existingChat = await databaseService.getChat(chatId, req.user!.userId);
+      const existingChat = await databaseService.getChat(chatId);
       if (!existingChat) {
         return ResponseHelper.notFound(res, 'Chat not found');
       }
 
-      // Update chat title
       await databaseService.updateChatTitle(chatId, title.trim());
 
-      // Get updated chat
-      const updatedChat = await databaseService.getChat(chatId, req.user!.userId);
+      const updatedChat = await databaseService.getChat(chatId);
       if (!updatedChat) {
         return ResponseHelper.internalError(res, 'Failed to retrieve updated chat');
       }
@@ -804,11 +774,9 @@ export class ChatController {
    */
   async deleteChat(req: Request<{ chatId: string }>, res: Response<ApiResponse<{ message: string }>>) {
     try {
-      // req.user is guaranteed by authenticate middleware
       const { chatId } = req.params;
 
-      // Check if chat exists and belongs to user
-      const existingChat = await databaseService.getChat(chatId, req.user!.userId);
+      const existingChat = await databaseService.getChat(chatId);
       if (!existingChat) {
         return ResponseHelper.notFound(res, 'Chat not found');
       }
@@ -1098,9 +1066,7 @@ TOOL_CALL:toolName:{"corrected":"arguments"}
         });
       }
 
-      // Create MCP context service with user's OAuth token if available
-      // Note: This endpoint is not protected by authenticate, so req.user may be undefined
-      const mcpContextService = this.createMCPContextService(req.user?.oauthToken);
+      const mcpContextService = this.createMCPContextService(undefined);
       if (!mcpContextService) {
         return res.json({
           success: false,
