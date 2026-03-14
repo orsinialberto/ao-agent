@@ -1,8 +1,6 @@
 -- Initialize database for AI Agent Chat
 -- This script runs when the PostgreSQL container starts for the first time
-
--- Create database if it doesn't exist
-CREATE DATABASE ai_agent_chat;
+-- (POSTGRES_DB in docker-compose already creates ai_agent_chat)
 
 -- Connect to the database
 \c ai_agent_chat;
@@ -52,6 +50,7 @@ CREATE TABLE IF NOT EXISTS llm_providers (
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_chat_id_created_at ON messages(chat_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_chats_created_at ON chats(created_at);
 
 -- Insert default LLM provider (Gemini)

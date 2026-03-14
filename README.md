@@ -28,9 +28,8 @@ Express.js backend for the AI Agent Chat application. Provides REST APIs for cha
    cp env.example .env
    # Edit .env with your database and API keys
 
-   # Setup database
-   npx prisma generate
-   npx prisma db push   # or npx prisma migrate dev (creates migration that drops users table)
+   # Database schema is applied automatically when the PostgreSQL container
+   # is created (init.sql in docker-entrypoint-initdb.d). No extra setup needed.
    ```
 
 3. **Run the server**
@@ -103,7 +102,7 @@ docker-compose up -d
 ### Tech Stack
 
 - Node.js + Express.js + TypeScript
-- PostgreSQL + Prisma ORM
+- PostgreSQL (schema via init.sql at container first start)
 - Gemini API integration
 - Docker + Docker Compose
 
