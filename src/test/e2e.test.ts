@@ -1,6 +1,6 @@
 // E2E tests for anonymous chat API
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://localhost:8080/api';
 
 interface ApiResponse<T = unknown> {
   success: boolean;

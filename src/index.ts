@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8080;
 
 // Pre-compute allowed origins for better performance (Set for O(1) lookup)
 const getAllowedOrigins = (): string[] => {

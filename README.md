@@ -35,7 +35,7 @@ Set `GEMINI_API_KEY` in `.env` (required).
 
 | Variable | Description | Default |
 |---|---|---|
-| `PORT` | Server port | `3001` |
+| `PORT` | Server port | `8080` |
 | `NODE_ENV` | Environment | `development` |
 | `GEMINI_API_KEY` | **Required.** Gemini API key | — |
 | `FRONTEND_URL` | Allowed CORS origin (e.g. dev frontend) | `http://localhost:5173` |
@@ -48,7 +48,7 @@ Set `GEMINI_API_KEY` in `.env` (required).
 npm run dev
 ```
 
-Server runs on http://localhost:3001
+Server runs on http://localhost:8080
 
 ### Build
 
