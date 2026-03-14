@@ -4,7 +4,7 @@ This guide explains how to configure ao-agent to connect to an MCP (Model Contex
 
 ## Overview
 
-When MCP is enabled, ao-agent connects to an MCP server to discover and invoke tools. The model (Gemini) decides when to call tools; ao-agent executes them via the MCP client and feeds the results back into the conversation.
+When MCP is enabled, ao-agent connects to an MCP server to discover and invoke tools. The model (Ollama) decides when to call tools; ao-agent executes them via the MCP client and feeds the results back into the conversation.
 
 ## Environment Variables
 
@@ -101,4 +101,4 @@ This results in: `npx -y @modelcontextprotocol/server-filesystem --allow-read /h
 
 ## Disabling MCP
 
-Set `MCP_ENABLED=false` (or remove it) and restart ao-agent. The backend will behave as before: no MCP connection, no agent loop, and standard chat with Gemini only.
+Set `MCP_ENABLED=false` (or remove it) and restart ao-agent. The backend will behave as before: no MCP connection, no agent loop, and standard chat with Ollama only.

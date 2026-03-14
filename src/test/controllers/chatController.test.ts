@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import { chatController } from '../../controllers/chatController';
 import { MessageRole } from '../../types/shared';
 
-jest.mock('../../services/geminiService', () => ({
-  geminiService: {
+jest.mock('../../services/ollamaService', () => ({
+  ollamaService: {
     sendMessageWithFallback: jest.fn().mockResolvedValue({ content: 'AI reply' }),
     sendMessageStream: jest.fn().mockImplementation(async function* () {
       yield 'Hello';

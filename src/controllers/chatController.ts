@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { geminiService } from '../services/geminiService';
+import { ollamaService } from '../services/ollamaService';
 import { ResponseHelper } from '../utils/responseHelpers';
 import {
   Message,
@@ -38,7 +38,7 @@ export class ChatController {
 
   private handleModelSwitch(model?: string): void {
     if (!model) return;
-    geminiService.switchModel(model);
+    ollamaService.switchModel(model);
   }
 
   private handleLLMError(res: Response, error: unknown, chatId?: string, isInitialMessage = false): Response {
@@ -73,7 +73,7 @@ export class ChatController {
             content: initialMessage.trim(),
             createdAt: now,
           };
-          const aiResponse = await geminiService.sendMessageWithFallback([userMessage]);
+          const aiResponse = await ollamaService.sendMessageWithFallback([userMessage]);
           const assistantMessage: Message = {
             id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
             chatId,
@@ -147,7 +147,7 @@ export class ChatController {
 
       let fullContent = '';
       try {
-        for await (const chunk of geminiService.sendMessageStream(anonymousChat.messages)) {
+        for await (const chunk of ollamaService.sendMessageStream(anonymousChat.messages)) {
           fullContent += chunk;
           res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
         }

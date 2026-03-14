@@ -20,8 +20,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@google/genai": "^1.45.0",
-    "@google/generative-ai": "^0.2.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

@@ -4,7 +4,7 @@
  * Uses dynamic import for MCP SDK to avoid ESM resolution issues in CJS build.
  */
 
-import type { MCPTool } from '../utils/mcpToGeminiTools';
+import type { MCPTool } from '../utils/mcpTools';
 
 const CLIENT_NAME = 'ao-agent';
 const CLIENT_VERSION = '1.0.0';
