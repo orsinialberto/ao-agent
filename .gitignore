@@ -69,11 +69,7 @@ Thumbs.db
 # Docker
 .dockerignore
 
-# Backend specific
-backend/dist/
-backend/.env
-backend/logs/
-backend/node_modules/
-backend/config/mcp-config.yml
-backend/config/oauth-config.yml
-backend/config/prompts/*
+# Project config (optional)
+config/mcp-config.yml
+config/oauth-config.yml
+config/prompts/*

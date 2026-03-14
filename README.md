@@ -20,7 +20,6 @@ Express.js backend that exposes a minimal API for anonymous chat with AI: create
 ### 1. Installation
 
 ```bash
-cd backend
 npm install
 ```
 
