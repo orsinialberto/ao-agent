@@ -1,45 +1,21 @@
-// Shared types between frontend and backend
-
-export interface Chat {
-  id: string;
-  title?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  messages?: Message[];
-}
+// Shared types for anonymous chat API (used by ao-chat)
 
 export interface Message {
   id: string;
   chatId: string;
   role: MessageRole;
   content: string;
-  metadata?: Record<string, any>;
-  createdAt: Date;
-}
-
-export interface LLMProvider {
-  id: string;
-  name: string;
-  type: LLMType;
-  config: Record<string, any>;
-  active: boolean;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
 }
 
 export enum MessageRole {
   USER = 'user',
   ASSISTANT = 'assistant',
-  SYSTEM = 'system'
+  SYSTEM = 'system',
 }
 
-export enum LLMType {
-  GEMINI = 'gemini',
-  ANTHROPIC = 'anthropic',
-  MCP = 'mcp'
-}
-
-// API Response types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -58,28 +34,14 @@ export interface CreateChatRequest {
 export interface CreateMessageRequest {
   chatId: string;
   content: string;
-  role: MessageRole;
+  role?: MessageRole;
   model?: string;
 }
 
-export interface ChatResponse {
-  chat: Chat;
-  messages: Message[];
-}
-
-// Anonymous chat types
 export interface AnonymousChat {
   id: string;
   title?: string;
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface MigrateChatsRequest {
-  chats: AnonymousChat[];
-}
-
-export interface MigrateChatsResponse {
-  migratedChats: Chat[];
 }

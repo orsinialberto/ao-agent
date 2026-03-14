@@ -133,82 +133,22 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-// Import controllers
+// Import controller
 import { chatController } from './controllers/chatController';
-import { healthController } from './controllers/healthController';
 
-// Anonymous chat endpoints (in-memory, no database)
-// Defined before app.use(limiter) so anonymousLimiter applies first
-// More restrictive rate limiting applied
+// Anonymous chat endpoints (in-memory, no database) - used by ao-chat
 app.post('/api/anonymous/chats', anonymousLimiter, (req, res, next) => {
   chatController.createAnonymousChat(req, res).catch(next);
 });
-app.post('/api/anonymous/chats/:chatId/messages', anonymousLimiter, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
-  chatController.sendAnonymousMessage(req, res).catch(next);
-});
-
-// Streaming endpoint for anonymous chats (SSE)
 app.post('/api/anonymous/chats/:chatId/messages/stream', anonymousLimiter, (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
   chatController.sendAnonymousMessageStream(req, res).catch(next);
 });
 
-// Apply general rate limiting to remaining routes
-// Anonymous routes are already handled above with anonymousLimiter
+// Apply general rate limiting for non-anonymous routes (anonymous already has anonymousLimiter)
 app.use((req, res, next) => {
-  // Skip rate limiting for anonymous endpoints (already handled)
-  if (req.path.startsWith('/api/anonymous')) {
-    return next();
-  }
-  // Apply general limiter to all other routes
+  if (req.path.startsWith('/api/anonymous')) return next();
   return limiter(req, res, next);
 });
-
-// Chat API routes (persisted in database)
-app.post('/api/chats', (req, res, next) => {
-  chatController.createChat(req, res).catch(next);
-});
-app.get('/api/chats', (req, res, next) => {
-  chatController.getChats(req, res).catch(next);
-});
-app.get('/api/chats/:chatId', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
-  chatController.getChat(req, res).catch(next);
-});
-app.put('/api/chats/:chatId', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
-  chatController.updateChat(req, res).catch(next);
-});
-app.delete('/api/chats/:chatId', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
-  chatController.deleteChat(req, res).catch(next);
-});
-app.post('/api/chats/:chatId/messages', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
-  chatController.sendMessage(req, res).catch(next);
-});
-app.post('/api/chats/:chatId/messages/stream', (req: Request<{ chatId: string }>, res: Response, next: NextFunction) => {
-  chatController.sendMessageStream(req, res).catch(next);
-});
-app.post('/api/chats/migrate', (req: Request, res: Response, next: NextFunction) => {
-  chatController.migrateAnonymousChats(req, res).catch(next);
-});
-
-// Test endpoints (can be public for development)
-app.get('/api/test/gemini', (req, res) => chatController.testConnection(req, res));
-app.get('/api/test/gemini/error-handling', (req, res) => chatController.testGeminiErrorHandling(req, res));
-app.get('/api/test/database', (req, res) => chatController.testDatabase(req, res));
-
-// Health check routes
-app.get('/api/health', (req, res) => healthController.healthCheck(req, res));
-app.get('/api/health/detailed', (req, res) => healthController.detailedHealthCheck(req, res));
-app.get('/api/health/mcp', (req, res) => healthController.getMCPInfo(req, res));
-app.get('/api/test/mcp', (req, res) => healthController.testMCPConnection(req, res));
-app.get('/api/mcp/status', (req, res) => chatController.getMCPStatus(req, res));
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -232,7 +172,7 @@ app.use('*', (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`📊 API: http://localhost:${PORT}/api/anonymous/chats`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 

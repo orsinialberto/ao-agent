@@ -1,5 +1,5 @@
 import { GeminiService } from '../services/geminiService';
-import { Message, MessageRole } from '../../../shared/types';
+import { Message, MessageRole } from '../types/shared';
 
 // Mock the GoogleGenerativeAI module
 const mockSendMessage = jest.fn().mockResolvedValue({
