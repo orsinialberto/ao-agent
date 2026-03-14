@@ -76,4 +76,5 @@ npm run test:watch # watch mode
 
 ## Documentation
 
+- **MCP**: [MCP server configuration](./docs/mcp-configuration.md) — how to configure the backend to communicate with an MCP server
 - **Frontend**: [ao-chat](https://github.com/orsinialberto/ao-chat) — React chat UI that consumes this API
