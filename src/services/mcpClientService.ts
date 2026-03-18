@@ -87,6 +87,7 @@ export async function connect(): Promise<void> {
     transport = new StdioClientTransport({
       command: config.command,
       args: config.args ?? [],
+      env: process.env as Record<string, string>,
     }) as { close(): Promise<void> };
   } else {
     console.warn('MCP: missing transport config');
