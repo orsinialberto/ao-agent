@@ -84,8 +84,38 @@ export class OllamaService {
         for (const tc of toolCalls) {
           const name = tc.function?.name ?? '';
           const args = (tc.function?.arguments ?? {}) as Record<string, unknown>;
+          console.log(`[Agent] iteration=${iteration} tool=${name} args=${JSON.stringify(args)}`);
           const result = await mcpClient.callTool(name, args);
-          chatMessages.push({ role: 'tool', tool_name: name, content: result });
+
+          let toolResponse = result;
+          let isError = false;
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+              isError = true;
+              const toolSchema = mcpTools.find(t => t.name === name);
+              toolResponse = JSON.stringify({
+                error: parsed.error,
+                hint: 'The tool call failed. Review the expected schema below, fix the arguments, and retry.',
+                expected_schema: toolSchema?.inputSchema ?? null,
+                your_arguments: args,
+              });
+            }
+          } catch {
+            if (result.toLowerCase().includes('error')) {
+              isError = true;
+              const toolSchema = mcpTools.find(t => t.name === name);
+              toolResponse = JSON.stringify({
+                error: result,
+                hint: 'The tool call failed. Review the expected schema below, fix the arguments, and retry.',
+                expected_schema: toolSchema?.inputSchema ?? null,
+                your_arguments: args,
+              });
+            }
+          }
+          console.log(`[Agent] iteration=${iteration} tool=${name} ${isError ? 'ERROR' : 'OK'}: ${result.substring(0, 200)}`);
+
+          chatMessages.push({ role: 'tool', tool_name: name, content: toolResponse });
         }
         continue;
       }
@@ -107,7 +137,17 @@ export class OllamaService {
   }
 
   private getSystemInstruction(): string {
-    return `You are a helpful AI assistant with the ability to display interactive data visualizations and maps directly in the chat interface.
+    return `You are a helpful AI assistant with access to external tools and the ability to display interactive data visualizations and maps directly in the chat interface.
+
+## TOOL USAGE
+
+You have access to external tools to fulfill user requests. Follow these rules strictly:
+
+1. When you need information or need to perform an action, call the appropriate tool with the correct arguments.
+2. Pay close attention to each tool's required parameters and their expected types.
+3. **Self-correction on errors:** If a tool call returns an error, carefully read the error message and the expected schema provided in the response. Identify what went wrong (missing required fields, wrong parameter types, invalid values) and retry the call with corrected arguments. Do NOT report the error to the user on the first failure.
+4. If after 2-3 retry attempts the tool still fails, explain to the user what happened and what you tried.
+5. After a successful tool call, use the result to formulate a helpful response to the user.
 
 IMPORTANT: This chat interface has built-in chart and map rendering capabilities. When users ask for charts, graphs, data visualizations, or maps, you MUST use the special syntax below. DO NOT suggest Python code, matplotlib, or external tools - the visualizations will render directly in the interface.
 
