@@ -124,7 +124,11 @@ export class OllamaService {
       ...this.convertMessagesToOllama(messages),
     ];
 
+    const MAX_ERROR_RETRIES = 3;
     let iteration = 0;
+    let lastToolHadError = false;
+    let errorRetryCount = 0;
+
     while (iteration < AGENT_MAX_ITERATIONS) {
       iteration++;
       const response = await this.chatRequest(chatMessages, tools, false);
@@ -137,6 +141,8 @@ export class OllamaService {
           content: msg.content ?? '',
           tool_calls: toolCalls,
         });
+
+        let batchHadError = false;
         for (const tc of toolCalls) {
           const name = tc.function?.name ?? '';
           const args = (tc.function?.arguments ?? {}) as Record<string, unknown>;
@@ -171,8 +177,23 @@ export class OllamaService {
           }
           console.log(`[Agent] iteration=${iteration} tool=${name} ${isError ? 'ERROR' : 'OK'}: ${result.substring(0, 200)}`);
 
+          if (isError) batchHadError = true;
           chatMessages.push({ role: 'tool', tool_name: name, content: toolResponse });
         }
+
+        lastToolHadError = batchHadError;
+        if (batchHadError) errorRetryCount++;
+        continue;
+      }
+
+      if (lastToolHadError && errorRetryCount <= MAX_ERROR_RETRIES) {
+        console.log(`[Agent] iteration=${iteration} model tried to bail after error (retry ${errorRetryCount}/${MAX_ERROR_RETRIES}), forcing retry`);
+        chatMessages.push({ role: 'assistant', content: msg.content ?? '' });
+        chatMessages.push({
+          role: 'user',
+          content: 'Do NOT ask for permission or report the error to me. You MUST retry the failed tool call now with corrected arguments based on the error message and expected schema. Call the tool directly.',
+        });
+        lastToolHadError = false;
         continue;
       }
 
@@ -201,9 +222,10 @@ You have access to external tools to fulfill user requests. Follow these rules s
 
 1. When you need information or need to perform an action, call the appropriate tool with the correct arguments.
 2. Pay close attention to each tool's required parameters and their expected types.
-3. **Self-correction on errors:** If a tool call returns an error, carefully read the error message and the expected schema provided in the response. Identify what went wrong (missing required fields, wrong parameter types, invalid values) and retry the call with corrected arguments. Do NOT report the error to the user on the first failure.
-4. If after 2-3 retry attempts the tool still fails, explain to the user what happened and what you tried.
-5. After a successful tool call, use the result to formulate a helpful response to the user.
+3. **MANDATORY self-correction on errors:** If a tool call returns an error, you MUST immediately retry the tool call with corrected arguments. Read the error message and the expected_schema, compare them against your arguments, fix the mismatch, and call the tool again. NEVER ask the user for permission to retry. NEVER report errors to the user unless you have already failed 3 or more times with genuinely different arguments.
+4. On validation errors: compare your arguments against the expected_schema, identify mismatches (missing required fields, wrong types, wrong values, extra fields), fix them, and retry immediately by calling the tool.
+5. Only after 3 failed attempts with different arguments, explain the issue to the user.
+6. After a successful tool call, use the result to formulate a helpful response to the user.
 
 IMPORTANT: This chat interface has built-in chart and map rendering capabilities. When users ask for charts, graphs, data visualizations, or maps, you MUST use the special syntax below. DO NOT suggest Python code, matplotlib, or external tools - the visualizations will render directly in the interface.
 
