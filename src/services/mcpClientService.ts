@@ -19,10 +19,43 @@ export interface MCPClientConfig {
   args?: string[];
 }
 
+export interface MCPPromptArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface MCPPrompt {
+  name: string;
+  description?: string;
+  arguments?: MCPPromptArgument[];
+}
+
+export interface MCPPromptMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface MCPPromptRaw {
+  name: string;
+  description?: string;
+  arguments?: Array<{ name: string; description?: string; required?: boolean }>;
+}
+
+interface MCPPromptGetResult {
+  description?: string;
+  messages?: Array<{
+    role: 'user' | 'assistant';
+    content: { type: string; text?: string } | Array<{ type: string; text?: string }>;
+  }>;
+}
+
 interface MCPClientLike {
   connect(transport: unknown): Promise<void>;
   listTools(params?: unknown): Promise<{ tools?: MCPToolRaw[] }>;
   callTool(params: { name: string; arguments?: Record<string, unknown> }): Promise<{ content?: Array<{ type: string; text?: string }> }>;
+  listPrompts(params?: unknown): Promise<{ prompts?: MCPPromptRaw[] }>;
+  getPrompt(params: { name: string; arguments?: Record<string, string> }): Promise<MCPPromptGetResult>;
 }
 
 interface MCPToolRaw {
@@ -34,6 +67,7 @@ interface MCPToolRaw {
 let client: MCPClientLike | null = null;
 let transport: { close(): Promise<void> } | null = null;
 let toolsCache: MCPTool[] | null = null;
+let promptsCache: MCPPrompt[] | null = null;
 
 function isMCPEnabled(): boolean {
   const val = process.env.MCP_ENABLED;
@@ -97,6 +131,7 @@ export async function connect(): Promise<void> {
   await mcpClient.connect(transport);
   client = mcpClient;
   toolsCache = null;
+  promptsCache = null;
   console.log('MCP: connected');
 }
 
@@ -111,6 +146,7 @@ export async function disconnect(): Promise<void> {
   }
   client = null;
   toolsCache = null;
+  promptsCache = null;
   console.log('MCP: disconnected');
 }
 
@@ -155,6 +191,51 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
     const message = e instanceof Error ? e.message : String(e);
     console.error('MCP: callTool failed', name, e);
     return JSON.stringify({ error: message });
+  }
+}
+
+export async function listPrompts(): Promise<MCPPrompt[]> {
+  if (!client) await connect();
+  if (!client) return [];
+
+  if (promptsCache) return promptsCache;
+
+  try {
+    const result = await client.listPrompts();
+    const prompts: MCPPrompt[] = (result?.prompts ?? []).map((p: MCPPromptRaw) => ({
+      name: p.name,
+      description: p.description,
+      arguments: p.arguments,
+    }));
+    promptsCache = prompts;
+    console.log(`MCP: discovered ${prompts.length} prompt(s):`, prompts.map(p => p.name).join(', ') || '(none)');
+    return prompts;
+  } catch (e) {
+    console.error('MCP: listPrompts failed', e);
+    return [];
+  }
+}
+
+export async function getPrompt(name: string, args?: Record<string, string>): Promise<MCPPromptMessage[]> {
+  if (!client) await connect();
+  if (!client) return [];
+
+  try {
+    const result = await client.getPrompt({ name, arguments: args });
+    const messages: MCPPromptMessage[] = [];
+    for (const msg of result?.messages ?? []) {
+      const contentArr = Array.isArray(msg.content) ? msg.content : [msg.content];
+      const textParts = contentArr
+        .filter((c) => c.type === 'text' && c.text)
+        .map((c) => c.text as string);
+      if (textParts.length > 0) {
+        messages.push({ role: msg.role, content: textParts.join('\n') });
+      }
+    }
+    return messages;
+  } catch (e) {
+    console.error('MCP: getPrompt failed', name, e);
+    return [];
   }
 }
 

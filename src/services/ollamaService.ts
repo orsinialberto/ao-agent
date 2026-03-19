@@ -44,14 +44,69 @@ export class OllamaService {
   private currentModelName: string;
   private retryAttempts: number;
   private retryDelay: number;
-  private readonly systemInstruction: string;
+  private readonly baseSystemInstruction: string;
+  private cachedMcpPromptSection: string | null = null;
 
   constructor() {
     this.baseUrl = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
     this.currentModelName = process.env.OLLAMA_MODEL || 'qwen3:8b';
     this.retryAttempts = parseInt(process.env.OLLAMA_RETRY_ATTEMPTS || '3');
     this.retryDelay = parseInt(process.env.OLLAMA_RETRY_DELAY || '1000');
-    this.systemInstruction = this.getSystemInstruction();
+    this.baseSystemInstruction = this.getSystemInstruction();
+  }
+
+  /**
+   * Build system instruction enriched with MCP prompt context when available.
+   * Fetches prompts/list once and caches the generated section. For prompts
+   * with no required arguments, also resolves their content via prompts/get.
+   */
+  private async getEffectiveSystemInstruction(): Promise<string> {
+    if (!mcpClient.isConnected()) return this.baseSystemInstruction;
+
+    if (this.cachedMcpPromptSection !== null) {
+      return this.baseSystemInstruction + this.cachedMcpPromptSection;
+    }
+
+    const prompts = await mcpClient.listPrompts();
+    if (prompts.length === 0) {
+      this.cachedMcpPromptSection = '';
+      return this.baseSystemInstruction;
+    }
+
+    let section = '\n\n## MCP SERVER PROMPTS\n\nThe connected server provides the following prompt workflows:\n';
+
+    for (const prompt of prompts) {
+      const hasRequiredArgs = prompt.arguments?.some(a => a.required) ?? false;
+
+      if (!hasRequiredArgs) {
+        const resolved = await mcpClient.getPrompt(prompt.name);
+        if (resolved.length > 0) {
+          section += `\n### ${prompt.name}`;
+          if (prompt.description) section += ` — ${prompt.description}`;
+          section += '\n';
+          for (const msg of resolved) {
+            section += `[${msg.role}]: ${msg.content}\n`;
+          }
+          continue;
+        }
+      }
+
+      section += `\n- **${prompt.name}**`;
+      if (prompt.description) section += `: ${prompt.description}`;
+      if (prompt.arguments && prompt.arguments.length > 0) {
+        const argDescs = prompt.arguments.map(a =>
+          `\`${a.name}\`${a.required ? ' (required)' : ''}${a.description ? ' — ' + a.description : ''}`
+        );
+        section += `\n  Arguments: ${argDescs.join(', ')}`;
+      }
+      section += '\n';
+    }
+
+    section += '\nWhen the user\'s request matches one of these workflows, use the appropriate prompt context to guide your response.';
+
+    this.cachedMcpPromptSection = section;
+    console.log(`MCP: loaded ${prompts.length} prompt(s) into system context`);
+    return this.baseSystemInstruction + section;
   }
 
   /**
@@ -63,8 +118,9 @@ export class OllamaService {
     if (mcpTools.length === 0) return null;
 
     const tools = mcpToolsToOllamaTools(mcpTools);
+    const systemInstruction = await this.getEffectiveSystemInstruction();
     const chatMessages: OllamaMessage[] = [
-      { role: 'system', content: this.systemInstruction },
+      { role: 'system', content: systemInstruction },
       ...this.convertMessagesToOllama(messages),
     ];
 
@@ -304,8 +360,9 @@ Remember: Both charts and maps render directly in this interface. Users see inte
       return;
     }
 
+    const systemInstruction = await this.getEffectiveSystemInstruction();
     const chatMessages: OllamaMessage[] = [
-      { role: 'system', content: this.systemInstruction },
+      { role: 'system', content: systemInstruction },
       { role: 'user', content: 'Understood! I will create interactive charts using the chart syntax. I will use chart:line, chart:bar, chart:pie, or chart:area with JSON data. I will not suggest Python or external tools.' },
       ...this.convertMessagesToOllama(messages),
     ];
@@ -320,8 +377,9 @@ Remember: Both charts and maps render directly in this interface. Users see inte
       const agentResult = await this.runAgentLoop(messages);
       if (agentResult) return agentResult;
 
+      const systemInstruction = await this.getEffectiveSystemInstruction();
       const chatMessages: OllamaMessage[] = [
-        { role: 'system', content: this.systemInstruction },
+        { role: 'system', content: systemInstruction },
         { role: 'user', content: 'Understood! I will create interactive charts using the chart syntax. I will use chart:line, chart:bar, chart:pie, or chart:area with JSON data. I will not suggest Python or external tools.' },
         ...this.convertMessagesToOllama(messages),
       ];
